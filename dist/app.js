@@ -296,6 +296,7 @@ function formDialog(
   );
 }
 function dialog(html, wide = false) {
+  if(isPrivacyLocked())return;
   closeDialog();
   modalReturnFocus = document.activeElement;
   const returnFocus = modalReturnFocus;
@@ -1903,6 +1904,7 @@ function previewWorkspaceImport(imported) {
   );
 }
 function globalSearch() {
+  if(isPrivacyLocked())return;
   loadDirectory("colleges");
   loadDirectory("high-schools");
   dialog(
@@ -1943,6 +1945,7 @@ function commandResults(query) {
       ["goals", "GOALS", "goals"],
       ["events", "PERSONAL EVENTS", "planner"],
       ["dayNotes", "DAILY NOTES", "planner"],
+      ...TOOL_DEFINITIONS.map(d=>[d.key,d.title.toUpperCase(),d.key]),
     ]) {
       const matches = state[key]
         .filter((r) =>
@@ -1969,6 +1972,8 @@ function commandResults(query) {
               ? `nav:planner/${r.date}`
               : key === "essays"
                 ? `open-essay:${r.id}`
+                : TOOL_DEFINITIONS.some(d=>d.key===key)
+                  ? `studio-edit:${key}/${r.id}`
                 : key === "documents"
                   ? `preview-document:${r.id}`
                   : `nav:${routePrefix.endsWith("/") ? routePrefix + r.id : routePrefix}`,
@@ -2961,6 +2966,7 @@ document.addEventListener("change", async (e) => {
   }
 });
 document.addEventListener("keydown", (e) => {
+  if(isPrivacyLocked())return;
   if (
     e.target.matches('[role="tab"]') &&
     ["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)
