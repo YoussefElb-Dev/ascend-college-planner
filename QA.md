@@ -86,3 +86,17 @@ Public image availability depends on Wikimedia. Missing or unverified images use
 - Final IPA SHA-256 matches the CI checksum. Its package includes the website font, font license and privacy manifest, and contains no personal backup, workspace file, test fixture, or provisioning profile. Preview records are synthetic and only activated by the preview launch argument.
 - Complete workspaces transfer manually through JSON backup preview/confirmation. Calendar files transfer separately through ICS with UID matching. No automatic cloud sync, database, account connection, or iCloud entitlement is configured.
 - Physical-device signing, installation and refresh remain unverified because no Apple signing environment is connected. The compiled IPA requires signing before it can run on an iPhone; Windows installation options are documented in ios/INSTALL.md. Native file-picker transfer and real-device accessibility/device settings were not exhaustively tested.
+
+## Version 1.1 · Studio, generated branding, privacy lock, private sync
+
+Release source: `505e5b6`. Successful hosted Mac build and native tests: https://github.com/YoussefElb-Dev/ascend-college-planner/actions/runs/40065455345 .
+
+- 40 website tests pass, including new collection validation, GPA, streaks, weighted ratings, planner inclusion, AES-GCM tampering/wrong-key rejection, and conditional GitHub writes.
+- 12 Swift Core tests pass. JavaScript-encrypted fixtures decrypt in CryptoKit, and native-encrypted exports decrypt in the website engine without losing fixture fields.
+- 5 native UI tests pass on iPhone 17 Pro / iOS 26.2: planner/event editing, checklist/profile, appearance, Studio/habit check-ins/focus timer, device setup and workspace search. Fifteen screenshots are included in the private build artifact.
+- Browser QA verified incorrect/correct password, reload locking, course create/archive/restore with recalculated GPA, habit check-ins/streak, a real one-minute focus session saved to history, and Studio search opening its matching record. Production Vercel serves the new logo and tools.
+- A synthetic encrypted create/read/update check against the private sync repository passed; a stale SHA was rejected with HTTP 409. The synthetic file was removed.
+- The user completed the limited GitHub token setup directly. The real website reports Up to date. Its exported iPhone connection successfully decrypts the live encrypted cloud copy, preserving all 12 applications. Credentials were not printed or committed. The user also reported that website and app work.
+- Final unsigned ARM64 IPA: `Ascend-1.1-unsigned.ipa`, 4,003,305 bytes, SHA-256 `8b9f75801888c1895eb0dd5c9942c319b25113bb378b13a2ca4d2631de6355b1`. Inspected ZIP: native executable, bundled font and tools resource, no provisioning profile, personal workspace, connection file, or embedded GitHub PAT.
+
+Limits: the 2010 website screen is a local privacy lock, not server authentication or browser-storage encryption. Cloud records use AES-256-GCM with a random key. Sync runs while open/unlocked or active; closed-app iOS background sync is not guaranteed. New devices must import the private connection once. The limited token expires November 23, 2026 and requires renewal. The IPA requires signing before a physical-device installation; simulator checks are independent of the user’s reported app result. Manual full backups and calendar file exchange remain available.
