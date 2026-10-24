@@ -5374,3 +5374,74 @@ dialog.modal::backdrop {
     font-size: 11px;
   }
 }
+.portal-setup-panel {
+  padding: 24px;
+  margin-bottom: 22px;
+}
+.portal-setup-panel .panel-heading {
+  gap: 18px;
+  align-items: flex-start;
+}
+.portal-setup-panel .panel-heading p {
+  max-width: 760px;
+  line-height: 1.7;
+}
+.portal-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.portal-setup-item {
+  display: flex;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  min-width: 0;
+}
+.portal-setup-item > div {
+  min-width: 0;
+}
+.portal-setup-item .focus-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+.portal-setup-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 6px;
+}
+.portal-setup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 14px;
+}
+.portal-setup-links .text-link {
+  font-size: 11px;
+  padding: 0;
+}
+.portal-setup-ready {
+  margin-top: 18px;
+}
+.portal-setup-ready summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 8px 0 16px;
+}
+.portal-setup-complete {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+@media (max-width: 1100px) {
+  .portal-setup-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .portal-setup-grid { grid-template-columns: 1fr; }
+  .portal-setup-panel { padding: 18px; }
+  .portal-setup-panel .panel-heading { flex-wrap: wrap; }
+}

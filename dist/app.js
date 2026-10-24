@@ -1553,6 +1553,7 @@ function recordForm(page, id = "", applicationId = "") {
           "Submitted",
           "Complete",
           "Not applicable",
+          "Not verified",
         ],
         r.status,
       ) +

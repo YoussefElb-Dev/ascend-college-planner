@@ -74,3 +74,7 @@ The build-time importer retrieves pinned official public datasets. It never send
 Font licenses are in `dist/fonts/`. Interface icons use locally embedded Lucide-style stroke paths; institutional monograms are neutral text fallbacks, not invented university logos.
 
 Calendar parsing and recurrence use the vendored `ical.js` 2.2.1 ES module from the official npm release, under MPL-2.0; its source and license are in `dist/vendor/`. No package is fetched at runtime. Imported sub-daily repeat rules are retained for export but displayed as a single occurrence; unsupported entries and preview safety limits produce notices. Imported alarms and other calendar properties are preserved as file data but are not executed as background notifications.
+## Portal setup checklist
+
+Tasks categorized as `Portal setup` appear on Home with direct portal links, editable steps, personal target dates, and a completed section. Completing or reopening a card updates its existing task. Financial aid records support `Not verified` so an unreviewed receipt is not presented as a confirmed missing submission.
+
