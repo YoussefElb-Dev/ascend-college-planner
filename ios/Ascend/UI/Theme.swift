@@ -1,7 +1,11 @@
 import SwiftUI
 
 enum Palette {
-    static let accent = Color(red: 0.36, green: 0.32, blue: 0.62)
+    static let accent = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.77, green: 0.73, blue: 0.96, alpha: 1)
+            : UIColor(red: 0.36, green: 0.32, blue: 0.62, alpha: 1)
+    })
     static let lavender = Color(red: 0.82, green: 0.80, blue: 0.94)
     static let mint = Color(red: 0.77, green: 0.88, blue: 0.84)
     static let peach = Color(red: 0.96, green: 0.85, blue: 0.77)

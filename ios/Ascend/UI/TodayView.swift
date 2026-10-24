@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject var store: WorkspaceStore
+    @Environment(\.colorScheme) private var scheme
     @State private var edit: EditTarget?
     private var applications: [Entry] { store.workspace.records("applications") }
     private var tasks: [Entry] { store.workspace.records("tasks").filter { $0.text("status") != "Done" }.sorted { ($0.text("due").isEmpty ? "9999" : $0.text("due")) < ($1.text("due").isEmpty ? "9999" : $1.text("due")) } }
@@ -67,7 +68,7 @@ struct TodayView: View {
             Image(systemName: icon).font(.body.weight(.medium)).foregroundStyle(Palette.accent)
             Text("\(value)").font(.system(size: 29, weight: .semibold)).tracking(-0.8)
             Text(title).font(.caption).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(15).background(color.opacity(0.40), in: RoundedRectangle(cornerRadius: 22)).overlay { RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.5), lineWidth: 0.7) }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(15).background(color.opacity(scheme == .dark ? 0.18 : 0.40), in: RoundedRectangle(cornerRadius: 22)).overlay { RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(scheme == .dark ? 0.15 : 0.5), lineWidth: 0.7) }
     }
 }
 
