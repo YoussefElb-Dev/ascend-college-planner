@@ -17,7 +17,6 @@ import {
   safeUrl,
   progress,
   blankState,
-  validateState,
   parseWorkspaceBackup,
   loadState,
   persistState,
@@ -2641,7 +2640,7 @@ async function action(value, el) {
     case "paste-backup":
       formDialog(
         "Paste a workspace backup",
-        `<p class="full body-copy">Paste the contents of an Ascend JSON backup. It is validated here in your browser before you review the import.</p>${textarea("Backup JSON", "backupText", "", 'required rows="10" maxlength="12582912" spellcheck="false" autocomplete="off"')}`,
+        `<p class="full body-copy">Paste the contents of an Ascend JSON backup. It is validated here in your browser before you review the import.</p>${textarea("Backup JSON", "backupText", "", 'required rows="10" maxlength="12582912" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"')}`,
         (v) => {
           const imported = parseWorkspaceBackup(v.backupText);
           previewWorkspaceImport(imported);
