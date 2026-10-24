@@ -8,6 +8,7 @@ on:
       - 'dist/core.js'
       - 'dist/calendar-model.js'
       - 'dist/vendor/ical.js'
+      - 'dist/fonts/**'
 permissions:
   contents: read
 concurrency:

@@ -58,6 +58,7 @@ enum RecordSpec {
 }
 
 struct EntryEditor: View {
+    @Environment(\.ascendColors) private var colors
     @EnvironmentObject var store: WorkspaceStore
     @Environment(\.dismiss) private var dismiss
     var collection: String
@@ -69,7 +70,7 @@ struct EntryEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                if imported { Section { Label("This event came from a calendar file. Its recurrence and time zone are preserved. Update it in the source calendar, then import again.", systemImage: "calendar.badge.clock").font(.subheadline) } }
+                if imported { Section { Label("This event came from a calendar file. Its recurrence and time zone are preserved. Update it in the source calendar, then import again.", systemImage: "calendar.badge.clock").font(.appBody) } }
                 Section("Details") {
                     TextField(collection == "applications" ? "College name" : "Title", text: binding(collection == "applications" ? "name" : "title")).accessibilityIdentifier("recordTitle")
                     if collection != "applications" && collection != "events" {
@@ -79,9 +80,9 @@ struct EntryEditor: View {
                     ForEach(RecordSpec.fields(collection)) { field in fieldView(field) }
                 }.disabled(imported)
                 if collection == "essays" {
-                    Section { Text("\(entry.text("body").split { $0.isWhitespace || $0.isNewline }.count) words · Each saved edit preserves the previous draft in version history.").font(.caption).foregroundStyle(.secondary) }
+                    Section { Text("\(entry.text("body").split { $0.isWhitespace || $0.isNewline }.count) words · Each saved edit preserves the previous draft in version history.").font(.appCaption).foregroundStyle(colors.muted) }
                 }
-                if collection == "applications" { Section { Text("Add checklist requirements from the application’s detail screen. Leave dates empty until verified with the college.").font(.footnote).foregroundStyle(.secondary) } }
+                if collection == "applications" { Section { Text("Add checklist requirements from the application’s detail screen. Leave dates empty until verified with the college.").font(.footnote).foregroundStyle(colors.muted) } }
             }.navigationTitle(imported ? "Calendar event" : "Edit " + (collection == "applications" ? "application" : collection == "events" ? "event" : "record")).navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Save", action: save).fontWeight(.semibold).disabled(entry.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imported).accessibilityIdentifier("saveRecord") } }
         }
@@ -91,7 +92,7 @@ struct EntryEditor: View {
         case .text: TextField(f.label, text: binding(f.key)).textInputAutocapitalization(["url", "email"].contains(f.key) ? .never : .sentences)
         case .number: TextField(f.label, text: binding(f.key)).keyboardType(.decimalPad)
         case .paragraph:
-            VStack(alignment: .leading, spacing: 8) { Text(f.label).font(.caption).foregroundStyle(.secondary); TextEditor(text: binding(f.key)).frame(minHeight: f.key == "body" ? 220 : 90).accessibilityLabel(f.label) }
+            VStack(alignment: .leading, spacing: 8) { Text(f.label).font(.appCaption).foregroundStyle(colors.muted); TextEditor(text: binding(f.key)).frame(minHeight: f.key == "body" ? 220 : 90).accessibilityLabel(f.label) }
         case .date: DateField(title: f.label, value: binding(f.key))
         case .time: if collection != "events" || !entry.flag("allDay") { TimeField(title: f.label, value: binding(f.key), required: collection == "events") }
         case .choices(let values):
@@ -124,6 +125,7 @@ struct EntryEditor: View {
 }
 
 struct RecordRow: View {
+    @Environment(\.ascendColors) private var colors
     @EnvironmentObject var store: WorkspaceStore
     var entry: Entry
     var collection: String
@@ -131,19 +133,20 @@ struct RecordRow: View {
         HStack(spacing: 2) {
             if collection == "tasks" { CheckButton(done: entry.text("status") == "Done", label: entry.title) { store.toggleTask(entry.id) } }
             NavigationLink { RecordDetail(collection: collection, id: entry.id) } label: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(entry.title).font(.subheadline.weight(.medium)).foregroundStyle(.primary).strikethrough(collection == "tasks" && entry.text("status") == "Done").fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.title).font(.appBody.weight(.medium)).foregroundStyle(colors.text).strikethrough(collection == "tasks" && entry.text("status") == "Done").fixedSize(horizontal: false, vertical: true)
                     let school = store.workspace.collegeName(for: entry)
-                    if !school.isEmpty { Text(school).font(.caption).foregroundStyle(.secondary) }
-                    HStack { if !entry.text("due").isEmpty { Text(DateKey.label(entry.text("due"))).font(.caption).foregroundStyle(entry.text("due") < DateKey.today && entry.text("status") != "Done" ? .red : .secondary) }; if collection != "tasks" && !entry.text("status").isEmpty { Text(entry.text("status")).font(.caption).foregroundStyle(.secondary) } }
+                    if !school.isEmpty { Text(school).font(.appCaption).foregroundStyle(colors.muted) }
+                    HStack { if !entry.text("due").isEmpty { Text(DateKey.label(entry.text("due"))).font(.appCaption).foregroundStyle(entry.text("due") < DateKey.today && entry.text("status") != "Done" ? .red : .secondary) }; if collection != "tasks" && !entry.text("status").isEmpty { Text(entry.text("status")).font(.appCaption).foregroundStyle(colors.muted) } }
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-            }.buttonStyle(.plain).padding(.vertical, 9)
+                Image(systemName: "chevron.right").font(.appCaption.weight(.semibold)).foregroundStyle(.tertiary)
+            }.buttonStyle(.plain).padding(.vertical, 5)
         }
     }
 }
 
 struct RecordList: View {
+    @Environment(\.ascendColors) private var colors
     @EnvironmentObject var store: WorkspaceStore
     var collection: String
     @State private var search = ""
@@ -159,13 +162,14 @@ struct RecordList: View {
                 if items.isEmpty { ContentUnavailableView("No records here", systemImage: "tray", description: Text("Add a record or adjust your filters.")) }
                 ForEach(items) { entry in RecordRow(entry: entry, collection: collection) }
             }.scrollContentBackground(.hidden)
-        }.navigationTitle(RecordSpec.title(collection)).searchable(text: $search)
+        }.navigationTitle(RecordSpec.title(collection)).navigationBarTitleDisplayMode(.inline).searchable(text: $search)
             .toolbar { Button { edit = EditTarget(collection) } label: { Image(systemName: "plus") }.accessibilityLabel("Add record") }
             .sheet(item: $edit) { EntryEditor($0) }
     }
 }
 
 struct RecordDetail: View {
+    @Environment(\.ascendColors) private var colors
     @EnvironmentObject var store: WorkspaceStore
     var collection: String
     var id: String
@@ -178,32 +182,32 @@ struct RecordDetail: View {
             SectionHeading(title: entry.title, subtitle: store.workspace.collegeName(for: entry))
             if !entry.text("status").isEmpty { StatusPill(text: entry.text("status")) }
             if collection == "tasks" {
-                Button(entry.text("status") == "Done" ? "Reopen task" : "Mark complete") { store.toggleTask(id) }.buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
+                Button(entry.text("status") == "Done" ? "Reopen task" : "Mark complete") { store.toggleTask(id) }.buttonStyle(.borderedProminent).foregroundStyle(colors.onAccent).buttonBorderShape(.capsule)
                 Panel {
                     SectionHeading(title: "Steps", subtitle: entry.text("category"))
-                    ForEach(entry.entries("subtasks")) { step in HStack { CheckButton(done: step.flag("done"), label: step.title) { toggleStep(step.id) }; Text(step.title).font(.subheadline).strikethrough(step.flag("done")) } }
-                    HStack { TextField("Add a step", text: $subtask); Button { addStep() } label: { Image(systemName: "plus.circle.fill").font(.title2) }.disabled(subtask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Add step") }
+                    ForEach(entry.entries("subtasks")) { step in HStack { CheckButton(done: step.flag("done"), label: step.title) { toggleStep(step.id) }; Text(step.title).font(.appBody).strikethrough(step.flag("done")) } }
+                    HStack { TextField("Add a step", text: $subtask); Button { addStep() } label: { Image(systemName: "plus.circle.fill").font(.appTitle) }.disabled(subtask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Add step") }
                 }
             }
             Panel {
                 ForEach(RecordSpec.fields(collection)) { f in
                     let text = entry.text(f.key)
                     if !text.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) { Text(f.label).font(.caption.weight(.medium)).foregroundStyle(.secondary); if f.key == "url" { SafeLink(title: "Open link", address: text) } else { Text(text).font(.subheadline).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) } }
+                        VStack(alignment: .leading, spacing: 6) { Text(f.label).font(.appCaption.weight(.medium)).foregroundStyle(colors.muted); if f.key == "url" { SafeLink(title: "Open link", address: text) } else { Text(text).font(.appBody).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) } }
                     }
                 }
             }
             if collection == "essays" && !entry.entries("versions").isEmpty {
                 Panel { SectionHeading(title: "Version history"); ForEach(entry.entries("versions").reversed()) { v in
-                    DisclosureGroup(Date(timeIntervalSince1970: v.number("at") / 1000).formatted(date: .abbreviated, time: .shortened)) { Text(v.text("body")).font(.subheadline).textSelection(.enabled); Button("Restore this draft") { restoreVersion = v }.padding(.top, 8) }
+                    DisclosureGroup(Date(timeIntervalSince1970: v.number("at") / 1000).formatted(date: .abbreviated, time: .shortened)) { Text(v.text("body")).font(.appBody).textSelection(.enabled); Button("Restore this draft") { restoreVersion = v }.padding(.top, 8) }
                 } }
             }
             if collection == "essays" { essayReview }
             if collection == "offers" {
-                Panel { SectionHeading(title: "Your annual net cost", subtitle: entry.text("verification").isEmpty ? "Estimate" : entry.text("verification")); Text(entry.text("cost").isEmpty ? "Not recorded" : (entry.number("cost") - entry.number("grants") - entry.number("scholarships")).formatted(.currency(code: "USD"))).font(.title.weight(.semibold)); Text("Cost of attendance minus grants and scholarships. Loans are borrowing; work-study must be earned. Verify figures with the college.").font(.caption).foregroundStyle(.secondary) }
+                Panel { SectionHeading(title: "Your annual net cost", subtitle: entry.text("verification").isEmpty ? "Estimate" : entry.text("verification")); Text(entry.text("cost").isEmpty ? "Not recorded" : (entry.number("cost") - entry.number("grants") - entry.number("scholarships")).formatted(.currency(code: "USD"))).font(.appTitle.weight(.semibold)); Text("Cost of attendance minus grants and scholarships. Loans are borrowing; work-study must be earned. Verify figures with the college.").font(.appCaption).foregroundStyle(colors.muted) }
             }
             if entry.flag("archived") { Button("Restore record") { var e = entry; e.set("archived", false); store.save(collection, e) }.buttonStyle(.bordered) }
-            else { Button("Archive record", role: .destructive) { store.archive(collection, id) }.font(.subheadline) }
+            else { Button("Archive record", role: .destructive) { store.archive(collection, id) }.font(.appBody) }
         }.navigationTitle(collection == "tasks" ? "Task" : "Details").navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Edit") { edit = EditTarget(collection, entry) } }
             .sheet(item: $edit) { EntryEditor($0) }
@@ -218,8 +222,8 @@ struct RecordDetail: View {
         let count = entry.text("body").split { $0.isWhitespace || $0.isNewline }.count
         return Panel {
             SectionHeading(title: "Revision checklist", subtitle: "\(count) words" + (entry.number("limit") > 0 ? " / \(Int(entry.number("limit")))" : ""))
-            if entry.number("limit") > 0 && Double(count) > entry.number("limit") { Text("\(count - Int(entry.number("limit"))) words over the limit").font(.caption).foregroundStyle(.red) }
-            ForEach(Array(labels.enumerated()), id: \.offset) { index, label in HStack(alignment: .top) { CheckButton(done: checks.contains(.number(Double(index))), label: label) { var e = entry; var next = checks; let value = JSONValue.number(Double(index)); if let i = next.firstIndex(of: value) { next.remove(at: i) } else { next.append(value) }; e.fields["reviewChecks"] = .array(next); store.save(collection, e) }; Text(label).font(.subheadline).padding(.top, 10) } }
+            if entry.number("limit") > 0 && Double(count) > entry.number("limit") { Text("\(count - Int(entry.number("limit"))) words over the limit").font(.appCaption).foregroundStyle(.red) }
+            ForEach(Array(labels.enumerated()), id: \.offset) { index, label in HStack(alignment: .top) { CheckButton(done: checks.contains(.number(Double(index))), label: label) { var e = entry; var next = checks; let value = JSONValue.number(Double(index)); if let i = next.firstIndex(of: value) { next.remove(at: i) } else { next.append(value) }; e.fields["reviewChecks"] = .array(next); store.save(collection, e) }; Text(label).font(.appBody).padding(.top, 10) } }
         }
     }
 }

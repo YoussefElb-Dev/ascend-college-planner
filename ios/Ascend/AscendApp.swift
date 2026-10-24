@@ -4,11 +4,21 @@ import SwiftUI
     @StateObject private var store = WorkspaceStore(preview: ProcessInfo.processInfo.arguments.contains("--preview"))
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(store).tint(Palette.accent)
+            ThemedRootView().environmentObject(store)
                 .preferredColorScheme(store.workspace.profile.text("theme") == "dark" ? .dark : store.workspace.profile.text("theme") == "system" ? nil : .light)
                 .saturation(store.workspace.profile.text("theme") == "monochrome" ? 0 : 1)
                 .alert("Ascend", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
         }
+    }
+}
+
+private struct ThemedRootView: View {
+    @EnvironmentObject var store: WorkspaceStore
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        let colors = AscendColors.resolve(store.workspace.profile.text("theme"), scheme: scheme)
+        RootView().environment(\.ascendColors, colors).tint(colors.accent)
+            .font(.appBody).foregroundStyle(colors.text)
     }
 }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ApplicationsView: View {
+    @Environment(\.ascendColors) private var colors
     @EnvironmentObject var store: WorkspaceStore
     @State private var mode = "My colleges"
     @State private var search = ""
@@ -21,15 +22,16 @@ struct ApplicationsView: View {
                 let items = store.workspace.records("applications", archived: archived).filter { (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)) && (status == "All" || $0.text("status") == status) }
                 if items.isEmpty { EmptyCard(icon: "building.columns", title: "A fresh start", message: "Import your website backup or explore the college directory to add your schools.") }
                 ForEach(items) { a in NavigationLink { ApplicationDetail(id: a.id) } label: { ApplicationCard(app: a) }.buttonStyle(.plain) }
-                NavigationLink { ComparisonView() } label: { Label("Compare saved colleges", systemImage: "rectangle.split.2x1").font(.subheadline.weight(.semibold)) }
+                NavigationLink { ComparisonView() } label: { Label("Compare saved colleges", systemImage: "rectangle.split.2x1").font(.appBody.weight(.semibold)) }
             }
-        }.navigationTitle("Colleges").searchable(text: $search, prompt: "Search colleges")
+        }.navigationTitle("Colleges").navigationBarTitleDisplayMode(.inline).searchable(text: $search, prompt: "Search colleges")
             .toolbar { Button { edit = EditTarget("applications") } label: { Image(systemName: "plus") }.accessibilityLabel("Add application") }
             .sheet(item: $edit) { EntryEditor($0) }
     }
 }
 
 struct ApplicationDetail: View {
+    @Environment(\.ascendColors) private var colors
     @EnvironmentObject var store: WorkspaceStore
     var id: String
     @State private var edit: EditTarget?
@@ -40,29 +42,29 @@ struct ApplicationDetail: View {
     private var app: Entry { store.workspace.entry("applications", id) ?? Entry() }
     var body: some View {
         Page {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 StatusPill(text: app.text("status"))
-                Text(app.title).font(.largeTitle.weight(.semibold)).tracking(-0.8)
-                if !app.text("major").isEmpty { Text(app.text("major")).font(.subheadline).foregroundStyle(.secondary) }
-                if !app.text("round").isEmpty { Text(app.text("round")).font(.caption).foregroundStyle(.secondary) }
+                Text(app.title).font(.appTitle.weight(.semibold)).tracking(-0.8)
+                if !app.text("major").isEmpty { Text(app.text("major")).font(.appBody).foregroundStyle(colors.muted) }
+                if !app.text("round").isEmpty { Text(app.text("round")).font(.appCaption).foregroundStyle(colors.muted) }
             }
             HStack {
-                VStack(alignment: .leading, spacing: 6) { Text("DEADLINE").font(.caption2.weight(.semibold)).tracking(1); Text(app.text("deadline").isEmpty ? "Not yet verified" : DateKey.label(app.text("deadline"))).font(.headline); if !app.text("deadlineTime").isEmpty { Text(app.text("deadlineTime") + " " + app.text("timezone")).font(.caption).foregroundStyle(.secondary) } }
+                VStack(alignment: .leading, spacing: 6) { Text("DEADLINE").font(.appMicro.weight(.semibold)).tracking(1); Text(app.text("deadline").isEmpty ? "Not yet verified" : DateKey.label(app.text("deadline"))).font(.appHeadline); if !app.text("deadlineTime").isEmpty { Text(app.text("deadlineTime") + " " + app.text("timezone")).font(.appCaption).foregroundStyle(colors.muted) } }
                 Spacer()
                 SafeLink(title: "Open portal", address: app.text("url"))
-            }.padding(20).glassPanel()
+            }.padding(14).glassPanel()
             Panel {
-                HStack { SectionHeading(title: "Your checklist"); Spacer(); Text("\(Int(Workspace.progress(app) * 100))%").font(.headline).monospacedDigit() }
+                HStack { SectionHeading(title: "Your checklist"); Spacer(); Text("\(Int(Workspace.progress(app) * 100))%").font(.appHeadline).monospacedDigit() }
                 ProgressView(value: Workspace.progress(app))
-                if app.entries("requirements").isEmpty { Text("Add the requirements listed in your college portal.").font(.subheadline).foregroundStyle(.secondary) }
+                if app.entries("requirements").isEmpty { Text("Add the requirements listed in your college portal.").font(.appBody).foregroundStyle(colors.muted) }
                 ForEach(app.entries("requirements")) { req in
                     HStack(alignment: .top, spacing: 4) {
                         CheckButton(done: req.flag("done") || req.flag("exempt"), label: req.title) { store.toggleRequirement(id, req.id) }.disabled(req.flag("exempt"))
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(req.title).font(.subheadline.weight(.medium)).strikethrough(req.flag("done")).padding(.top, 11)
-                            if req.flag("exempt") { Text("Exempt").font(.caption).foregroundStyle(.secondary) }
-                            else if req.fields["required"] == .bool(false) { Text("Optional").font(.caption).foregroundStyle(.secondary) }
-                            if let parent = app.entries("requirements").first(where: { $0.id == req.text("dependsOn") }) { Text("After: " + parent.title).font(.caption).foregroundStyle(.secondary) }
+                            Text(req.title).font(.appBody.weight(.medium)).strikethrough(req.flag("done")).padding(.top, 11)
+                            if req.flag("exempt") { Text("Exempt").font(.appCaption).foregroundStyle(colors.muted) }
+                            else if req.fields["required"] == .bool(false) { Text("Optional").font(.appCaption).foregroundStyle(colors.muted) }
+                            if let parent = app.entries("requirements").first(where: { $0.id == req.text("dependsOn") }) { Text("After: " + parent.title).font(.appCaption).foregroundStyle(colors.muted) }
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         Menu {
                             Button(req.fields["required"] == .bool(false) ? "Make required" : "Make optional") { updateRequirement(req.id, field: "required", value: req.fields["required"] == .bool(false)) }
@@ -70,18 +72,18 @@ struct ApplicationDetail: View {
                         } label: { Image(systemName: "ellipsis").frame(width: 30, height: 44) }.accessibilityLabel("Options for " + req.title)
                     }
                 }
-                Button { showRequirement = true } label: { Label("Add requirement", systemImage: "plus") }.font(.subheadline.weight(.medium))
+                Button { showRequirement = true } label: { Label("Add requirement", systemImage: "plus") }.font(.appBody.weight(.medium))
             }
             let linkedTasks = store.workspace.records("tasks").filter { $0.text("applicationId") == id }
             if !linkedTasks.isEmpty { Panel { SectionHeading(title: "Tasks & portal setup"); ForEach(linkedTasks) { RecordRow(entry: $0, collection: "tasks") } } }
-            if !app.text("notes").isEmpty { Panel { SectionHeading(title: "Application notes"); Text(app.text("notes")).font(.subheadline).textSelection(.enabled) } }
+            if !app.text("notes").isEmpty { Panel { SectionHeading(title: "Application notes"); Text(app.text("notes")).font(.appBody).textSelection(.enabled) } }
             ForEach(["aid", "essays", "notes", "recommendations", "offers"], id: \.self) { key in
                 let linked = store.workspace.records(key).filter { $0.text("applicationId") == id }
                 if !linked.isEmpty { Panel { SectionHeading(title: RecordSpec.title(key)); ForEach(linked) { RecordRow(entry: $0, collection: key) } } }
             }
-            if let college = CollegeDirectory.shared.record(app.text("collegeId"), workspace: store.workspace) { NavigationLink { CollegeDetail(college: college) } label: { Label("College profile & tuition", systemImage: "building.columns").font(.subheadline.weight(.semibold)) } }
+            if let college = CollegeDirectory.shared.record(app.text("collegeId"), workspace: store.workspace) { NavigationLink { CollegeDetail(college: college) } label: { Label("College profile & tuition", systemImage: "building.columns").font(.appBody.weight(.semibold)) } }
             Button { var t = RecordSpec.new("tasks"); t.set("applicationId", id); edit = EditTarget("tasks", t) } label: { Label("Add a task for this college", systemImage: "plus") }.buttonStyle(.bordered).buttonBorderShape(.capsule)
-            Button(app.flag("archived") ? "Restore application" : "Archive application", role: app.flag("archived") ? nil : .destructive) { var a = app; a.set("archived", !a.flag("archived")); store.save("applications", a) }.font(.subheadline)
+            Button(app.flag("archived") ? "Restore application" : "Archive application", role: app.flag("archived") ? nil : .destructive) { var a = app; a.set("archived", !a.flag("archived")); store.save("applications", a) }.font(.appBody)
         }.navigationTitle("Application").navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Edit") { edit = EditTarget("applications", app) } }
             .sheet(item: $edit) { EntryEditor($0) }

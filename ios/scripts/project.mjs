@@ -11,9 +11,9 @@ const list=values=>`(${values.join(',')})`;
 const walk=p=>fs.readdirSync(path.join(root,p),{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(`${p}/${e.name}`):[`${p}/${e.name}`]);
 const sources=walk('Ascend').filter(p=>p.endsWith('.swift'));
 const tests=walk('UITests').filter(p=>p.endsWith('.swift'));
-const resources=['Ascend/Resources/colleges.json','Ascend/Resources/college-media.json','Ascend/Resources/ical-LICENSE.txt','Ascend/Core/Resources/calendar.js','Ascend/Assets.xcassets','Ascend/PrivacyInfo.xcprivacy'];
+const resources=['Ascend/Resources/colleges.json','Ascend/Resources/college-media.json','Ascend/Resources/ical-LICENSE.txt','Ascend/Resources/PlusJakartaSans.ttf','Ascend/Resources/plus-jakarta-sans-OFL.txt','Ascend/Core/Resources/calendar.js','Ascend/Assets.xcassets','Ascend/PrivacyInfo.xcprivacy'];
 const files=[...sources,...tests,...resources,'Ascend/Info.plist'];
-for(const p of files){let type=p.endsWith('.swift')?'sourcecode.swift':p.endsWith('.xcassets')?'folder.assetcatalog':p.endsWith('.plist')||p.endsWith('.xcprivacy')?'text.plist.xml':p.endsWith('.js')?'sourcecode.javascript':'text.json';add('file:'+p,`isa = PBXFileReference; lastKnownFileType = ${q(type)}; path = ${q(p)}; sourceTree = "<group>";`);}
+for(const p of files){let type=p.endsWith('.swift')?'sourcecode.swift':p.endsWith('.xcassets')?'folder.assetcatalog':p.endsWith('.plist')||p.endsWith('.xcprivacy')?'text.plist.xml':p.endsWith('.js')?'sourcecode.javascript':p.endsWith('.ttf')?'file':p.endsWith('.txt')?'text':'text.json';add('file:'+p,`isa = PBXFileReference; lastKnownFileType = ${q(type)}; path = ${q(p)}; sourceTree = "<group>";`);}
 add('appProduct','isa = PBXFileReference; explicitFileType = wrapper.application; path = Ascend.app; sourceTree = BUILT_PRODUCTS_DIR;');
 add('testProduct','isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = AscendUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR;');
 add('products',`isa = PBXGroup; children = ${list([id('appProduct'),id('testProduct')])}; name = Products; sourceTree = "<group>";`);

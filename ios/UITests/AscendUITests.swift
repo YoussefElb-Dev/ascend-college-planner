@@ -11,6 +11,7 @@ final class AscendUITests: XCTestCase {
         screenshot("02-Colleges")
         app.tabBars.buttons["Planner"].tap()
         XCTAssertTrue(app.segmentedControls["calendarZoom"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Volleyball game"].firstMatch.isHittable, "The compact month should leave its selected-day agenda visible.")
         screenshot("03-Month")
         app.segmentedControls["calendarZoom"].buttons["Week"].tap()
         screenshot("04-Week")

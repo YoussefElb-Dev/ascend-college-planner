@@ -18,6 +18,8 @@ ios/.swiftpm/
 ios/build/
 ios/DerivedData/
 ios/Ascend/Resources/*.json
+ios/Ascend/Resources/PlusJakartaSans.ttf
+ios/Ascend/Resources/plus-jakarta-sans-OFL.txt
 ios/Ascend/Core/Resources/calendar.js
 ios/Ascend/Assets.xcassets/
 **/xcuserdata/

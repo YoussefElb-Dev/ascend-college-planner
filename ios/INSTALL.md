@@ -2,6 +2,8 @@
 
 Ascend is a native SwiftUI iOS app. It supports iOS 17 or later, with native Liquid Glass on iOS 26 and native material surfaces on earlier versions. It does not use a web view.
 
+The app uses the website’s pastel color values, locally bundled Plus Jakarta Sans font, and compact cards. Dark and monochrome modes use the website’s corresponding palettes. Change the theme under Workspace → Profile & appearance.
+
 ## About this IPA
 
 `Ascend-1.0-unsigned.ipa` is a compiled ARM64 iPhone/iPad app, packaged without a signing certificate or provisioning profile. It is **not directly installable** by opening it on an iPhone. Apple requires valid signing and provisioning before an app can run on a physical device. This build does not include or request anyone's signing credentials.
