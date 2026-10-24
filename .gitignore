@@ -1,0 +1,15 @@
+node_modules/
+.sites-runtime/
+.sites-checkout/
+*.tar.gz
+*.tgz
+*.zip
+qa-artifacts/
+*.log
+.vercel/
+.env
+.env.*
+!.env.example
+private-imports/
+backups/
+ascend-backup*.json

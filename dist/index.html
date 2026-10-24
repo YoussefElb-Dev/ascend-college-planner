@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f3f2f6" />
+    <meta
+      name="description"
+      content="Your private college application workspace. Plan applications, essays, activities, visits, and budgets in your browser."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org; font-src 'self'; connect-src 'self' https://en.wikipedia.org https://commons.wikimedia.org; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
+    <title>Ascend — Your next chapter</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./studio.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div id="app"></div>
+    <div id="dialogs"></div>
+    <div id="toasts" role="status" aria-live="polite"></div>
+    <div id="print-root"></div>
+    <noscript
+      >Ascend needs JavaScript to save your application workspace in this
+      browser.</noscript
+    >
+  </body>
+</html>
