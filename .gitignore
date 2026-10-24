@@ -28,3 +28,5 @@ ios/Ascend/Assets.xcassets/
 *.mobileprovision
 native-roundtrip.json
 native-artifacts/
+
+native-encrypted-roundtrip.json

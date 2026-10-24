@@ -1,3 +1,4 @@
+import {sealWorkspace} from "../../dist/sync-core.js";
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -14,6 +15,9 @@ for(const key of ['recommendations','aid','scholarships','offers','notes','activ
 w.activities[0].hours='3';w.activities[0].weeks='30';w.notes[0].body='A note';
 w.events=[{id:'event-1',title:'Volleyball game',date:'2027-01-04',endDate:'2027-01-04',allDay:false,time:'17:00',endTime:'18:30',timezone:'America/New_York',category:'Sports',repeat:'Weekly',repeatInterval:1,repeatUntil:'2027-03-31',sourceUid:'game@example.test',location:'School gym'}];
 w.dayNotes=[{id:'day-1',date:'2027-01-04',body:'Remember the game.'}];w.favorites=['186131'];w.compare=['186131'];w.questbridge={status:'Exploring',outcome:'',ranking:['app-1']};
+w.courses=[{id:"course-1",title:"Calculus",credits:3,gradePoints:4}];w.habits=[{id:"habit-1",title:"Read",doneDates:["2026-10-24"]}];
 validateState(w);fs.writeFileSync(path.join(folder,'workspace.json'),JSON.stringify(w,null,2)+'\n');
 fs.writeFileSync(path.join(folder,'recurring.ics'),`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Ascend//Synthetic QA//EN\r\nBEGIN:VEVENT\r\nUID:game@example.test\r\nDTSTAMP:20261023T120000Z\r\nDTSTART:20270104T170000\r\nDTEND:20270104T183000\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nEXDATE:20270111T170000\r\nSUMMARY:Volleyball game\r\nLOCATION:School gym\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
 console.log('Generated synthetic compatibility fixtures.');
+
+fs.writeFileSync(path.join(folder,"encrypted-sync.json"),await sealWorkspace(w,Buffer.alloc(32,7).toString("base64")));

@@ -8,13 +8,14 @@ struct WorkspaceView: View {
     var body: some View {
         ZStack { PageBackground(); List {
             Section { NavigationLink { TransferView() } label: { Label("Backup & transfer", systemImage: "arrow.triangle.2.circlepath") }; NavigationLink { ProfileView() } label: { Label("Profile & appearance", systemImage: "slider.horizontal.3") } }
+            Section("Studio & planning") { NavigationLink { WorkspaceSearchView() } label: { Label("Search workspace",systemImage:"magnifyingglass") }; NavigationLink { StudioView() } label: { Label("Studio & tools",systemImage:"sparkles") }; NavigationLink { DeviceSyncView() } label: { Label("Device sync",systemImage:"arrow.triangle.2.circlepath") } }
             Section("Your workspace") {
                 ForEach(RecordSpec.collections, id: \.0) { key, title, icon in
                     NavigationLink { if key == "documents" { DocumentsView() } else { RecordList(collection: key) } } label: { HStack(spacing: 10) { Image(systemName: icon).foregroundStyle(colors.accent).frame(width: 25); Text(title); Spacer(); Text("\(store.workspace.records(key).count)").font(.appBody).foregroundStyle(colors.muted) } }.padding(.vertical, 2)
                 }
                 NavigationLink { QuestBridgeView() } label: { Label("QuestBridge", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
             }
-            Section { Text("Local by design. Complete workspace backups stay compatible with your Ascend website. Campus images use public Wikimedia sources; your private workspace is never sent to those services.").font(.appCaption).foregroundStyle(colors.muted) }
+            Section { Text("Local by design. Complete workspace backups stay compatible with your Ascend website. Optional GitHub sync stores an encrypted copy in your private repository. Campus images use public Wikimedia sources; your private workspace is never sent to those services.").font(.appCaption).foregroundStyle(colors.muted) }
         }.scrollContentBackground(.hidden) }.navigationTitle("Workspace").navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -31,7 +32,7 @@ struct ProfileView: View {
             Section("About you") { TextField("Name", text: binding("name")); TextField("Graduation year", text: binding("graduation")).keyboardType(.numberPad); TextField("Intended major", text: binding("major")); TextField("High school", text: binding("highSchool")); TextField("State", text: binding("state")); TextField("Application stage", text: binding("stage")) }
             Section("Appearance") { Picker("Theme", selection: binding("theme")) { Text("Website pastel").tag("light"); Text("Dark").tag("dark"); Text("Black & white").tag("monochrome"); Text("Follow iPhone").tag("system") }; Text("The website’s colors and Plus Jakarta Sans font, with compact spacing. Native Liquid Glass is used on iOS 26. Black & white uses the website’s monochrome palette and also removes color from photos.").font(.appCaption).foregroundStyle(colors.muted) }
             Section { Toggle("QuestBridge planning", isOn: Binding(get: { profile.flag("questbridge") }, set: { profile.set("questbridge", $0); saved = false })); Button(saved ? "Saved" : "Save profile") { if store.change({ $0.profile = profile }) { saved = true } }.fontWeight(.semibold) }
-            Section { NavigationLink("Backup & transfer") { TransferView() }; NavigationLink("Open-source licenses") { LicenseView() }; LabeledContent("Version", value: "1.0 (1)"); Text("Ascend is a personal planning tool. The app does not sign into portals or submit applications.").font(.appCaption).foregroundStyle(colors.muted) }
+            Section { NavigationLink("Backup & transfer") { TransferView() }; NavigationLink("Open-source licenses") { LicenseView() }; LabeledContent("Version", value: "1.1 (2)"); Text("Ascend is a personal planning tool. The app does not sign into portals or submit applications.").font(.appCaption).foregroundStyle(colors.muted) }
         }.navigationTitle("Profile & appearance").navigationBarTitleDisplayMode(.inline).onAppear { if !loaded { profile = store.workspace.profile; loaded = true } }
     }
 }

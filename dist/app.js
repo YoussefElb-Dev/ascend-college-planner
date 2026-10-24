@@ -1,3 +1,8 @@
+import {privacyReady,isPrivacyLocked,lockWorkspace} from "./privacy-lock.js";
+import {createDeviceSync} from "./device-sync.js";
+await privacyReady;
+import {createWorkspaceTools} from "./workspace-tools.js";
+import {TOOL_DEFINITIONS,validateTools} from "./workspace-tools-model.js";
 import {
   STORAGE_KEY,
   STATUSES,
@@ -123,6 +128,7 @@ const pageNames = {
   goals: "Goals",
 };
 const morePages = [
+  "studio", "focus", "readiness", "sync",
   "deadlines",
   "resources",
   "activities",
@@ -143,7 +149,9 @@ const morePages = [
   "analytics",
   "settings",
 ];
+Object.assign(pageNames,{studio:"Studio & tools",focus:"Focus timer",readiness:"Submission review",sync:"Device sync",...Object.fromEntries(TOOL_DEFINITIONS.map(d=>[d.key,d.title]))});
 const pageIcons = {
+  studio:"spark",focus:"clock",readiness:"check",sync:"shield",
   deadlines: "calendar",
   resources: "book",
   planner: "calendar",
@@ -211,7 +219,9 @@ function save(renderAfter = false) {
     return false;
   }
   try {
+    validateTools(state);
     persistState(state);
+    deviceSync?.changed();
     if (renderAfter) render();
     return true;
   } catch (e) {
@@ -392,10 +402,11 @@ function appearanceDialog() {
   );
 }
 function render() {
+  if(isPrivacyLocked())return;
   applyTheme();
   const base = route.split("/")[0];
   document.title = `${pageNames[base] || "College workspace"} · Ascend`;
-  root.innerHTML = `<header class="topbar"><a class="brand" href="#home"><span>ascend<span class="brand-period">.</span></span><small class="brand-tag">college planner</small></a><nav class="desktop-nav" aria-label="Main navigation">${["home", "planner", "applications", "colleges", "tasks"].map((p) => `<a href="#${p}" class="nav-link ${base === p ? "active" : ""}" ${base === p ? 'aria-current="page"' : ""}>${pageNames[p]}</a>`).join("")}<div class="dropdown"><button class="nav-link ${morePages.includes(base) ? "active" : ""}" data-action="more" aria-controls="more-menu" aria-expanded="false">Workspace ${icon("down")}</button><div class="dropdown-menu" id="more-menu" hidden>${morePages.map((p) => `<a href="#${p}">${icon(pageIcons[p])}${pageNames[p]}</a>`).join("")}</div></div></nav><div class="nav-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "monochrome" ? "contrast" : document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<button class="avatar" data-action="profile" aria-label="Your profile">${h(state.profile.name ? initials(state.profile.name) : "Y")}</button>${ibtn("menu", "Open navigation", "mobile-menu", `aria-controls="mobile-navigation" aria-expanded="${mobileMenu}"`)}</div></header>${
+  root.innerHTML = `<header class="topbar"><a class="brand" href="#home"><img class="brand-mark" src="./assets/ascend-mark.png" alt=""><span>ascend<span class="brand-period">.</span></span><small class="brand-tag">college planner</small></a><nav class="desktop-nav" aria-label="Main navigation">${["home", "planner", "applications", "colleges", "tasks"].map((p) => `<a href="#${p}" class="nav-link ${base === p ? "active" : ""}" ${base === p ? 'aria-current="page"' : ""}>${pageNames[p]}</a>`).join("")}<div class="dropdown"><button class="nav-link ${morePages.includes(base) ? "active" : ""}" data-action="more" aria-controls="more-menu" aria-expanded="false">Workspace ${icon("down")}</button><div class="dropdown-menu" id="more-menu" hidden>${morePages.map((p) => `<a href="#${p}">${icon(pageIcons[p])}${pageNames[p]}</a>`).join("")}</div></div></nav><div class="nav-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "monochrome" ? "contrast" : document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<button class="avatar" data-action="profile" aria-label="Your profile">${h(state.profile.name ? initials(state.profile.name) : "Y")}</button>${ibtn("menu", "Open navigation", "mobile-menu", `aria-controls="mobile-navigation" aria-expanded="${mobileMenu}"`)}</div></header>${
     mobileMenu
       ? `<nav class="mobile-nav" id="mobile-navigation" aria-label="Mobile navigation">${Object.entries(
           pageNames,
@@ -422,7 +433,10 @@ function render() {
 }
 function renderPage() {
   const [base, id] = route.split("/");
+  if (base === "sync") return deviceSync.page();
   if (base === "planner") return planner.page(id);
+  const toolPage = studio.renderPage(base);
+  if (toolPage !== null) return toolPage;
   const extraPage = extras.renderPage(base);
   if (extraPage !== null) return extraPage;
   switch (base) {
@@ -466,7 +480,7 @@ function renderPage() {
   }
 }
 function dashboard() {
-  return homePage({ state, btn, badge, filterTabs, applicationsTable });
+  return `<div class="studio-home-bar"><a href="#studio"><strong>Your studio</strong><span>Focus · habits · schoolwork · interview practice →</span></a><a class="text-link" href="#sync">Device sync ↗</a></div>` + homePage({ state, btn, badge, filterTabs, applicationsTable });
 }
 function filterTabs(compact = false) {
   const values = compact
@@ -1822,7 +1836,7 @@ function settingsPage() {
       "Settings",
       "Manage your profile, appearance, and browser-local workspace.",
     ) +
-    `<div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your profile</h2><p>The person behind the possibilities.</p></div>${btn("Edit profile", "profile", "secondary", "edit")}</div><div class="profile-intro"><span class="avatar large">${h(initials(state.profile.name || "You"))}</span><div><h3>${h(state.profile.name || "Your next chapter")}</h3><p>Class of ${h(state.profile.graduation || "—")}</p></div></div><div class="detail-list"><div><span>High school</span><strong>${h(state.profile.highSchool || "Not selected")}</strong></div><div><span>Academic interests</span><strong>${h(state.profile.major || "Still exploring")}</strong></div><div><span>Home state</span><strong>${h(state.profile.state || "Not set")}</strong></div><div><span>Application stage</span><strong>${h(state.profile.stage || "Getting started")}</strong></div></div></section><section class="panel"><h2>Appearance</h2><p class="body-copy">Liquid glass, in your preferred palette.</p>${appearanceOptions()}<div class="setting-row"><div><strong>QuestBridge workspace</strong><p>An optional place for your QuestBridge plans.</p></div><input type="checkbox" id="quest-toggle" aria-label="Enable QuestBridge workspace" ${state.profile.questbridge ? "checked" : ""}></div><div class="info-note">${icon("leaf")}Motion and transparency follow your device’s accessibility settings.</div></section><section class="panel data-panel"><div class="panel-heading"><div><span class="eyebrow">YOUR BROWSER. YOUR DATA.</span><h2>Backup & data</h2></div><span class="metric-icon mint">${icon("shield")}</span></div><p class="body-copy">Applications, essays, documents, and personal information are saved only in this browser on this device. There is no account, database connection, analytics, or cloud sync. Other people using this browser profile can access your workspace.</p><div class="storage-meter"><span>${(bytes / 1024).toFixed(0)} KB saved locally</span><span>Browser capacity varies</span></div><p class="body-copy">Clearing site data, switching browsers, or using private browsing can remove or separate your workspace. Download a backup regularly. Backups include your private files; keep them somewhere you trust.</p><div class="button-group">${btn("Download full backup", "export-backup", "primary", "download")}${btn("Import backup", "import-backup", "secondary", "upload")}${btn("Paste backup", "paste-backup", "ghost", "edit")}${btn("Export applications CSV", "export-applications", "ghost", "download")}</div><input id="backup-file" type="file" accept=".json,application/json" hidden></section><section class="panel data-panel"><h2>Reset workspace</h2><p class="body-copy">Remove all personal workspace data from this browser. The bundled school directory stays available.</p>${btn("Reset this workspace", "reset-workspace", "danger", "trash")}</section></div>`
+    `<div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your profile</h2><p>The person behind the possibilities.</p></div>${btn("Edit profile", "profile", "secondary", "edit")}</div><div class="profile-intro"><span class="avatar large">${h(initials(state.profile.name || "You"))}</span><div><h3>${h(state.profile.name || "Your next chapter")}</h3><p>Class of ${h(state.profile.graduation || "—")}</p></div></div><div class="detail-list"><div><span>High school</span><strong>${h(state.profile.highSchool || "Not selected")}</strong></div><div><span>Academic interests</span><strong>${h(state.profile.major || "Still exploring")}</strong></div><div><span>Home state</span><strong>${h(state.profile.state || "Not set")}</strong></div><div><span>Application stage</span><strong>${h(state.profile.stage || "Getting started")}</strong></div></div></section><section class="panel"><h2>Appearance</h2><p class="body-copy">Liquid glass, in your preferred palette.</p>${appearanceOptions()}<div class="setting-row"><div><strong>QuestBridge workspace</strong><p>An optional place for your QuestBridge plans.</p></div><input type="checkbox" id="quest-toggle" aria-label="Enable QuestBridge workspace" ${state.profile.questbridge ? "checked" : ""}></div><div class="info-note">${icon("leaf")}Motion and transparency follow your device’s accessibility settings.</div></section><section class="panel data-panel"><div class="panel-heading"><div><span class="eyebrow">YOUR BROWSER. YOUR DATA.</span><h2>Backup & data</h2></div><span class="metric-icon mint">${icon("shield")}</span></div><p class="body-copy">Applications, essays, documents, and personal information save locally in this browser. If you enable device sync, an encrypted copy also saves in your private GitHub repository. There is no database or analytics. The local password screen is a privacy lock; protect access to your browser profile.</p><div class="storage-meter"><span>${(bytes / 1024).toFixed(0)} KB saved locally</span><span>Browser capacity varies</span></div><p class="body-copy">Clearing site data, switching browsers, or using private browsing can remove or separate your workspace. Download a backup regularly. Backups include your private files; keep them somewhere you trust.</p><div class="button-group">${btn("Download full backup", "export-backup", "primary", "download")}${btn("Import backup", "import-backup", "secondary", "upload")}${btn("Paste backup", "paste-backup", "ghost", "edit")}${btn("Export applications CSV", "export-applications", "ghost", "download")}</div><input id="backup-file" type="file" accept=".json,application/json" hidden></section><section class="panel data-panel"><h2>Privacy & device sync</h2><p class="body-copy">Unlock with your chosen password. The local lock hides the workspace after five minutes of inactivity. It is not server authentication. Optional device sync sends only encrypted records to your private GitHub repository.</p>${btn("Lock now", "lock-workspace", "secondary", "shield")}${btn("Open device sync", "nav:sync", "secondary")}<hr><h2>Reset workspace</h2><p class="body-copy">Remove all personal workspace data from this browser. The bundled school directory stays available.</p>${btn("Reset this workspace", "reset-workspace", "danger", "trash")}</section></div>`
   );
 }
 function profileForm(onboard = false) {
@@ -2013,6 +2027,10 @@ async function action(value, el) {
     key = index < 0 ? value : value.slice(0, index),
     arg = index < 0 ? "" : value.slice(index + 1);
   const [id, sub] = arg.split("/");
+  if(isPrivacyLocked())return;
+  if(key==="lock-workspace"){lockWorkspace();return;}
+  if(key.startsWith("cloud-") && await deviceSync.handle(key,arg))return;
+  if (key.startsWith("studio-") && (await studio.handle(key,arg))) return;
   if (key.startsWith("planner-") && (await planner.handle(key, arg))) return;
   if (key.startsWith("extra-") && (await extras.handle(key, arg))) return;
   switch (key) {
@@ -3135,7 +3153,10 @@ const extras = createExtras({
     navigate("essays");
   },
 });
-render();
+let deviceSync = createDeviceSync({getState:()=>state,render,header,btn,field,formDialog,toast,isLocked:isPrivacyLocked,applyRemote:workspace=>{try{if(storageReadFailed)return false;const next=parseWorkspaceBackup(JSON.stringify(workspace));localStorage.setItem("ascend.before-last-sync.v1",JSON.stringify(state));persistState(next);state=next;applyTheme();return true;}catch{return false;}}});
+const studio = createWorkspaceTools({getState:()=>state,mutate,render,header,btn,ibtn,field,select,textarea,appSelect,formDialog,dialog,closeDialog,toast,csv});
+window.addEventListener("ascend:unlock",()=>{render();deviceSync.sync();});
+render();deviceSync.start();
 if ("serviceWorker" in navigator)
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 

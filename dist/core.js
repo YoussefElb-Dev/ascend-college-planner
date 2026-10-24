@@ -1,3 +1,4 @@
+import {TOOL_KEYS,validateTools} from "./workspace-tools-model.js";
 import {
   expandPersonalEvents,
   calendarFile,
@@ -161,6 +162,7 @@ export function blankState() {
     contacts: [],
     events: [],
     dayNotes: [],
+    ...Object.fromEntries(TOOL_KEYS.map(k=>[k,[]])),
     questbridge: { status: "Exploring", outcome: "", ranking: [] },
   };
 }
@@ -181,6 +183,7 @@ const collections = [
   "notifications",
 ];
 const optionalCollections = [
+  ...TOOL_KEYS,
   "activities",
   "honors",
   "visits",
@@ -411,6 +414,9 @@ export function validateState(value) {
       value.questbridge.ranking.some((id) => !validId(id)))
   )
     throw new Error("Invalid QuestBridge ranking.");
+  validateTools(value);
+  const dw=value.profile.decisionWeights;
+  if(dw!=null && (typeof dw!=="object"||Array.isArray(dw)||["academics","affordability","campus","opportunity"].some(k=>typeof dw[k]!=="number"||!Number.isFinite(dw[k])||dw[k]<0||dw[k]>100)||!["academics","affordability","campus","opportunity"].some(k=>dw[k]>0)))throw Error("Choose valid decision weights.");
   const clean = blankState();
   for (const key of [
     ...collections,
@@ -485,6 +491,7 @@ export function calendarEvents(s, range = {}) {
     ["goals", "Goal"],
     ["contacts", "Follow-up"],
     ["expenses", "Expense"],
+    ["assignments", "Assignment"], ["prompts", "Essay prompt"], ["interviewPractice", "Interview practice"],
   ])
     for (const r of s[key] || [])
       if (

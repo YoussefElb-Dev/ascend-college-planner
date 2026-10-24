@@ -315,6 +315,31 @@
       "body": "Remember the game."
     }
   ],
+  "courses": [
+    {
+      "id": "course-1",
+      "title": "Calculus",
+      "credits": 3,
+      "gradePoints": 4
+    }
+  ],
+  "assignments": [],
+  "habits": [
+    {
+      "id": "habit-1",
+      "title": "Read",
+      "doneDates": [
+        "2026-10-24"
+      ]
+    }
+  ],
+  "focusSessions": [],
+  "prompts": [],
+  "interviewPractice": [],
+  "collegeScores": [],
+  "weeklyReviews": [],
+  "receipts": [],
+  "readingList": [],
   "questbridge": {
     "status": "Exploring",
     "outcome": "",

@@ -9,6 +9,9 @@ on:
       - 'dist/calendar-model.js'
       - 'dist/vendor/ical.js'
       - 'dist/fonts/**'
+      - 'dist/assets/**'
+      - 'dist/workspace-tools-model.js'
+      - 'dist/sync-core.js'
 permissions:
   contents: read
 concurrency:
@@ -32,17 +35,22 @@ jobs:
           mkdir -p native-artifacts
       - name: Website and native data compatibility tests
         env:
+          ASCEND_ENCRYPTED_ROUNDTRIP: ${{ github.workspace }}/native-encrypted-roundtrip.json
           ASCEND_ROUNDTRIP_OUTPUT: ${{ github.workspace }}/native-roundtrip.json
         run: |
           npm run check
           swift test --package-path ios
           node --input-type=module <<'JS'
           import fs from 'node:fs'; import assert from 'node:assert/strict';
+          import {openWorkspace} from './dist/sync-core.js';
           import {parseWorkspaceBackup} from './dist/core.js';
           const raw=JSON.parse(fs.readFileSync('native-roundtrip.json','utf8'));
           const fixture=JSON.parse(fs.readFileSync('ios/Tests/Fixtures/workspace.json','utf8'));
           parseWorkspaceBackup(JSON.stringify(raw)); delete raw.exportedAt;
           assert.deepEqual(raw,fixture);
+          const encrypted=fs.readFileSync('native-encrypted-roundtrip.json','utf8');
+          assert.deepEqual(await openWorkspace(encrypted,Buffer.alloc(32,7).toString('base64')),fixture);
+          console.log('Native AES-GCM file decrypts in the website engine.');
           console.log('Native export passes website validation and preserves every fixture field.');
           JS
       - name: Build unsigned iPhone app
@@ -55,8 +63,8 @@ jobs:
           lipo -archs native-artifacts/Payload/Ascend.app/Ascend | grep arm64
           test ! -e native-artifacts/Payload/Ascend.app/embedded.mobileprovision
           cd native-artifacts
-          zip -qry Ascend-1.0-unsigned.ipa Payload
-          shasum -a 256 Ascend-1.0-unsigned.ipa > SHA256SUMS.txt
+          zip -qry Ascend-1.1-unsigned.ipa Payload
+          shasum -a 256 Ascend-1.1-unsigned.ipa > SHA256SUMS.txt
           rm -r Payload
       - name: Select iPhone simulator
         id: simulator

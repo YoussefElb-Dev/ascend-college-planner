@@ -1,3 +1,4 @@
+import {TOOL_DEFINITIONS} from "../../dist/workspace-tools-model.js";
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,7 @@ fs.mkdirSync(resources, {recursive:true}); fs.mkdirSync(coreResources, {recursiv
 for (const name of ['colleges.json', 'college-media.json']) fs.copyFileSync(path.join(repo,'dist','data',name),path.join(resources,name));
 fs.copyFileSync(path.join(repo,'dist/vendor/ical-LICENSE.txt'),path.join(resources,'ical-LICENSE.txt'));
 for (const name of ['PlusJakartaSans.ttf', 'plus-jakarta-sans-OFL.txt']) fs.copyFileSync(path.join(repo,'dist/fonts',name),path.join(resources,name));
+fs.writeFileSync(path.join(resources,'workspace-tools.json'),JSON.stringify(TOOL_DEFINITIONS));
 const vendor = fs.readFileSync(path.join(repo,'dist/vendor/ical.js'),'utf8').replace(/export\s*\{\s*ICALmodule\s+as\s+default\s*\};?\s*$/, '');
 const calendar = fs.readFileSync(path.join(repo,'dist/calendar-model.js'),'utf8').replace(/^import .*?;\s*/,'').replace(/\bexport /g,'');
 const script = `"use strict";

@@ -55,7 +55,7 @@ public enum WorkspaceError: LocalizedError {
 public struct Workspace: Equatable, Sendable {
     public var root: [String: JSONValue]
     public static let required = ["applications", "tasks", "essays", "documents", "recommendations", "aid", "scholarships", "offers", "notes", "favorites", "compare", "customColleges", "customSchools", "notifications"]
-    public static let optional = ["activities", "honors", "visits", "tests", "expenses", "goals", "contacts", "events", "dayNotes"]
+    public static let optional = ["activities", "honors", "visits", "tests", "expenses", "goals", "contacts", "events", "dayNotes"] + StudyModel.keys
     public static let maximumBytes = 12 * 1024 * 1024
     public init(root: [String: JSONValue]) { self.root = root }
     public static var empty: Workspace {
@@ -148,6 +148,7 @@ public struct Workspace: Equatable, Sendable {
                 }
             }
         }
+        try StudyModel.validate(self)
         if let qb = root["questbridge"] {
             guard case .object = qb else { try fail("Invalid QuestBridge record."); return }
             guard case .array? = qb.object["ranking"], (qb.object["ranking"]?.array ?? []).allSatisfy({ Self.validID($0.text) }) else { try fail("Invalid QuestBridge ranking."); return }

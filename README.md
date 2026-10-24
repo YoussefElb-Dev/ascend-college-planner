@@ -1,10 +1,10 @@
 # Ascend
 
-A static college application planner with balanced pastel colors, self-hosted Plus Jakarta Sans, and a simple wordmark. All personal records and uploaded documents stay in the browser’s `localStorage`. There is no application backend, authentication service, database connection, telemetry, API key, or cloud synchronization.
+A static college application planner with balanced pastel colors, self-hosted Plus Jakarta Sans, and a generated architectural brand mark. Personal records save locally by default. Optional website ↔ iPhone sync encrypts the full workspace into a separate private GitHub repository. There is no database, application backend, or telemetry.
 
 ## GitHub and Vercel
 
-This repository contains the application and public directory data only. Personal workspaces, portal checklists, email extracts, documents, and backups must never be committed or deployed. The repository is private; the deployed application shell is publicly accessible, while each browser profile keeps its own private records locally.
+This repository contains the application and public directory data only. Personal workspaces, portal checklists, email extracts, documents, and backups must never be committed or deployed. The repository is private; the deployed application shell is publicly accessible, and each browser profile keeps records locally. The password 2010 adds a local privacy screen with idle locking; it is not server authentication or encryption of browser storage.
 
 Import this repository into Vercel with the repository root as the root directory. `vercel.json` selects the Other framework, runs the syntax checks and automated tests, and publishes only `dist/`. No environment variables, database, server functions, or paid services are required. The application uses hash routes, so no server-side route rewrites are needed.
 
@@ -49,7 +49,7 @@ The directory is a bundled federal reporting snapshot, not a live admissions sou
 
 Your workspace belongs to a particular browser profile and site origin. The local preview and hosted app have separate storage. Clearing browser site data, private browsing, or switching browsers/devices can remove or separate records. Use **Settings → Download full backup** regularly, and import it to move devices. Backups contain private documents in plain JSON; keep them private. Other people with access to the same browser profile can access your records.
 
-File limits are 1 MB per file and 3 MB of raw documents total. Browser storage capacity varies and base64 file encoding adds overhead. Ascend reports failed writes and rolls changes back rather than claiming a save succeeded. No remote file upload occurs.
+File limits are 1 MB per file and 3 MB of raw documents total. Browser storage capacity varies and base64 file encoding adds overhead. Ascend reports failed writes and rolls changes back rather than claiming a save succeeded. Optional sync uploads only an AES-256-GCM encrypted workspace file, including its documents, to the chosen private repository.
 
 The service worker caches static application files and public directory assets only. Personal records never enter the HTTP cache, source repository, or hosting deployment. College photos load from Wikimedia image hosts, and optional metadata requests use the Wikipedia and Commons APIs. Official resource links open in separate tabs only when selected. No emails, push reminders, college submissions, or AI writing services are invoked.
 
@@ -61,7 +61,7 @@ node --test scripts/*.test.mjs
 node scripts/import-directory.mjs --validate
 ```
 
-All 30 automated tests pass. Browser QA covered the original workflows, the new planning tools, backup compatibility, desktop and mobile routes, keyboard navigation, overflow, and dark mode. Test fixtures are synthetic and are not included in the initial workspace. See `QA.md` for results and limits.
+Run the automated checks with `node --run check`. Browser QA covered the original workflows, the new planning tools, backup compatibility, desktop and mobile routes, keyboard navigation, overflow, and dark mode. Test fixtures are synthetic and are not included in the initial workspace. See `QA.md` for results and limits.
 
 ## Directory maintenance
 
@@ -84,7 +84,15 @@ Settings also supports pasting a JSON backup when file selection is unavailable.
 
 The `ios/` project is a native SwiftUI companion, with Today, college/application checklists, month/week/day planning, personal events, day notes, essays and version history, local documents, financial aid and the other workspace collections. It supports iOS 17+, native Liquid Glass on iOS 26, and light/dark/monochrome appearances. It uses no web view or remote database.
 
-Full JSON backups transfer the complete workspace manually between the website and iPhone. `.ics` import/export exchanges calendar events and deadlines. Full imports preview their contents, replace the destination workspace, and retain the previous saved file locally for recovery. Private student records are never bundled in the app or checked into this repository; CI uses synthetic fixtures only.
+Optional encrypted private GitHub sync connects the website and iPhone while open/active. Full JSON backups also transfer the complete workspace manually between devices. `.ics` import/export exchanges calendar events and deadlines. Full imports preview their contents, replace the destination workspace, and retain the previous saved file locally for recovery. Private student records are never bundled in the app or checked into this repository; CI uses synthetic fixtures only.
 
 The **Native iOS app** Actions workflow builds an unsigned ARM64 IPA on a hosted Mac, runs cross-platform backup compatibility tests and native iPhone simulator UI tests, and saves screenshots/build reports as a private artifact. An unsigned IPA needs signing before it can run on a physical iPhone. See [iPhone build, installation and transfer instructions](ios/INSTALL.md), including Windows sideloading options and Xcode setup.
 
+
+## Studio and private device sync · version 1.1
+
+Ten additional tools cover courses and credit-weighted GPA, assignments, seven-day habit check-ins and streaks, focus history, supplemental essay prompts, structured interview practice, weighted personal college ratings, weekly reviews, submission receipts, and a research library. A persistent focus timer, submission review, native workspace search, archived-record recovery, and website CSV exports connect these tools. Dated assignments, prompts, and interview practice appear in the planner. Older backups acquire empty new collections without losing existing fields.
+
+Device sync uses GitHub Contents read/write access to a separate **private** repository and a random 32-byte encryption key. AES-256-GCM authenticates the workspace before either device accepts it. The website keeps connection secrets in its browser profile; the native app uses Keychain. Connection exports include the token and key and must be transferred privately. Ordinary workspace backups exclude them. Use a fine-grained token limited to only `ascend-private-sync`; no token or personal workspace is bundled or committed.
+
+Set up the website first at **Workspace → Device sync**, then import its connection file into **iPhone → Workspace → Device sync**. Automatic checks occur approximately once a minute while unlocked/open or active, and saved edits debounce for 15 seconds. Different edits on both devices pause for explicit review and allow exporting both copies before replacement. GitHub SHA conditions prevent overwriting an unseen remote edit. No closed-app iOS background guarantee is made. Manual backups and calendar import/export remain available.

@@ -61,7 +61,7 @@ extension Workspace {
         for a in records("applications") where !a.text("deadline").isEmpty && !["Withdrawn", "Rejected"].contains(a.text("status")) {
             events.append(Entry(["id": .string(a.id), "title": .string(a.title + " application"), "date": .string(a.text("deadline")), "time": .string(a.text("deadlineTime")), "zone": .string(a.text("timezone")), "kind": .string("Application"), "collection": .string("applications")]))
         }
-        for (key, kind) in [("tasks", "Task"), ("aid", "Financial aid"), ("scholarships", "Scholarship"), ("recommendations", "Recommendation"), ("visits", "Visit / interview"), ("tests", "Test"), ("goals", "Goal"), ("contacts", "Follow-up"), ("expenses", "Expense")] {
+        for (key, kind) in [("tasks", "Task"), ("aid", "Financial aid"), ("scholarships", "Scholarship"), ("recommendations", "Recommendation"), ("visits", "Visit / interview"), ("tests", "Test"), ("goals", "Goal"), ("contacts", "Follow-up"), ("expenses", "Expense"), ("assignments", "Assignment"), ("prompts", "Essay prompt"), ("interviewPractice", "Interview practice")] {
             for r in records(key) where !r.text("due").isEmpty && !r.flag("done") && !["Submitted", "Done", "Canceled", "Complete", "Paid", "Waived"].contains(r.text("status")) {
                 var e = r; e.set("date", r.text("due")); e.set("kind", kind); e.set("zone", r.text("timezone")); e.set("collection", key); events.append(e)
             }

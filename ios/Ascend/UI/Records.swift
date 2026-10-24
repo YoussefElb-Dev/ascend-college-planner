@@ -21,7 +21,7 @@ enum RecordSpec {
         ("recommendations", "Recommendations", "person.2"), ("activities", "Activities", "figure.run"), ("honors", "Honors & awards", "rosette"),
         ("tests", "Tests", "pencil.and.list.clipboard"), ("visits", "Visits & interviews", "map"), ("contacts", "Contacts", "person.crop.circle"),
         ("goals", "Goals", "target"), ("expenses", "Expenses", "creditcard"), ("offers", "Offers & decisions", "envelope.open")
-    ]
+    ] + ToolCatalog.definitions.map { ($0.text("key"),$0.title,$0.text("symbol")) }
     static func title(_ key: String) -> String { key == "applications" ? "Application" : key == "events" ? "Event" : collections.first { $0.0 == key }?.1 ?? key.capitalized }
     static func new(_ key: String) -> Entry {
         var e = Entry.new(); e.set("status", "Not Started")
@@ -29,6 +29,8 @@ enum RecordSpec {
         if key == "tasks" { e.set("status", "To do"); e.set("category", "Application"); e.set("priority", "Medium"); e.set("recurrence", "Never"); e.set("subtasks", entries: []) }
         if key == "essays" { e.set("body", ""); e.set("versions", entries: []) }
         if key == "events" { e.set("date", DateKey.today); e.set("endDate", DateKey.today); e.set("time", "09:00"); e.set("endTime", "10:00"); e.set("allDay", false); e.set("timezone", TimeZone.current.identifier); e.set("repeat", "None"); e.set("repeatInterval", 1.0); e.set("category", "Personal"); e.set("status", "Planned") }
+        if key=="interviewPractice" {e.set("question",["Tell me about a time you changed your mind.","Why are you interested in this college?","Describe a challenge and the steps you took.","How have you contributed to a community?"].randomElement()!)}
+        if let d=ToolCatalog.definitions.first(where:{$0.text("key")==key}) { if let f=d.entries("fields").first(where:{$0.text("key")=="status"}),let value=f.fields["values"]?.array.first {e.fields["status"]=value};if key=="habits"{e.fields["doneDates"] = .array([])} }
         return e
     }
     static func fields(_ key: String) -> [RecordField] {
@@ -52,7 +54,7 @@ enum RecordSpec {
         case "expenses": return [category, .init("amount", "Amount (USD)", .number), due, .init("status", "Status", .choices(["Planned", "Paid", "Waived"])), notes]
         case "offers": return [.init("year", "Academic year"), .init("verification", "These figures are", .choices(["Estimate", "Confirmed offer"])), .init("cost", "Annual cost of attendance (USD)", .number), .init("grants", "Grants (USD)", .number), .init("scholarships", "Scholarships (USD)", .number), .init("loans", "Loans offered (USD)", .number), .init("workstudy", "Work-study offered (USD)", .number), notes]
         case "events": return [.init("date", "Starts on", .date), .init("endDate", "Ends on", .date), .init("time", "Start time", .time), .init("endTime", "End time", .time), .init("timezone", "Time zone (IANA)"), .init("category", "Category", .choices(["Personal", "Sports", "School", "Study", "Work", "Family", "Health", "Social", "Travel", "Other"])), .init("location", "Location"), .init("repeat", "Repeat", .choices(["None", "Daily", "Weekly", "Monthly", "Yearly"])), .init("repeatUntil", "Repeat until", .date), .init("status", "Status", .choices(["Planned", "Done", "Canceled"])), notes]
-        default: return [generalStatus, due, url, notes]
+        default: return ToolCatalog.fields(key) ?? [generalStatus, due, url, notes]
         }
     }
 }

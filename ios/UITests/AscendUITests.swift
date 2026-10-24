@@ -51,6 +51,44 @@ final class AscendUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ascend"].firstMatch.waitForExistence(timeout: 10))
         screenshot("10-Dark")
     }
+    func testStudioHabitAndFocusTools() throws {
+        let app=XCUIApplication();app.launchArguments=["--preview"];app.launch()
+        app.tabBars.buttons["Workspace"].tap()
+        app.buttons["Studio & tools"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Your studio"].waitForExistence(timeout:5))
+        screenshot("11-Studio")
+        app.buttons["Habit check-ins"].tap()
+        app.buttons["Add habit"].tap()
+        let title=app.textFields["recordTitle"];XCTAssertTrue(title.waitForExistence(timeout:5));title.tap();title.typeText("Read ten pages")
+        app.buttons["saveRecord"].tap()
+        XCTAssertTrue(app.staticTexts["Read ten pages"].waitForExistence(timeout:5))
+        let check=app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@ AND label ENDSWITH %@","Read ten pages ","incomplete")).firstMatch
+        XCTAssertTrue(check.exists);check.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@ AND label ENDSWITH %@","Read ten pages "," complete")).firstMatch.exists)
+        screenshot("12-Habits")
+        app.navigationBars.buttons.element(boundBy:0).tap()
+        app.buttons["Focus timer"].tap()
+        let focus=app.textFields["focusTitle"];XCTAssertTrue(focus.waitForExistence(timeout:5));focus.tap();focus.typeText("Essay revision")
+        app.buttons["Start focus block"].tap()
+        XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout:5));app.buttons["Pause"].tap()
+        XCTAssertTrue(app.buttons["Resume"].exists)
+        screenshot("13-Focus")
+        app.buttons["Discard"].tap()
+        XCTAssertTrue(app.buttons["Start focus block"].exists)
+    }
+    func testDeviceConnectionAndWorkspaceSearch() throws {
+        let app=XCUIApplication();app.launchArguments=["--preview"];app.launch()
+        app.tabBars.buttons["Workspace"].tap()
+        app.buttons["Device sync"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Import website device connection"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.buttons["Connect private sync"].isEnabled)
+        screenshot("14-Device-sync")
+        app.navigationBars.buttons.element(boundBy:0).tap()
+        app.buttons["Search workspace"].firstMatch.tap()
+        let search=app.searchFields.firstMatch;XCTAssertTrue(search.waitForExistence(timeout:5));search.tap();search.typeText("Cornell")
+        XCTAssertTrue(app.staticTexts["Cornell University"].firstMatch.waitForExistence(timeout:5))
+        screenshot("15-Search")
+    }
     private func screenshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }

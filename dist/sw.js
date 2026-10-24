@@ -1,5 +1,6 @@
-const CACHE = "ascend-static-v11";
+const CACHE = "ascend-static-v12";
 const FILES = [
+  "./tools.css", "./workspace-tools.js", "./workspace-tools-model.js", "./privacy-lock.js", "./sync-core.js", "./device-sync.js", "./assets/ascend-mark.png",
   "./",
   "./index.html",
   "./styles.css",

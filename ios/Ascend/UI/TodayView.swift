@@ -31,6 +31,8 @@ struct TodayView: View {
                 stat("To do", value: tasks.count, icon: "checklist", color: colors.peach)
             }.accessibilityElement(children: .combine)
 
+            NavigationLink { StudioView() } label: { HStack { Label("Studio & tools",systemImage:"sparkles");Spacer();Text("Focus · habits · schoolwork").font(.appMicro) }.font(.appBody).padding(12).background(colors.mint,in:RoundedRectangle(cornerRadius:14)) }.buttonStyle(.plain)
+
             if !portals.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeading(title: "Open the next door", subtitle: "\(portals.count) applicant portal\(portals.count == 1 ? "" : "s") to set up")
@@ -62,7 +64,7 @@ struct TodayView: View {
             }
             Label("Saved on this iPhone · Transfer with backups", systemImage: "lock").font(.appCaption).foregroundStyle(colors.muted).frame(maxWidth: .infinity)
         }.navigationTitle("Ascend").navigationBarTitleDisplayMode(.inline)
-            .toolbar { NavigationLink { ProfileView() } label: { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Settings") }
+            .toolbar { ToolbarItem(placement:.principal) { HStack(spacing:7) { BrandMark();Text("Ascend").font(.appHeadline) } }; ToolbarItem(placement:.primaryAction) { NavigationLink { ProfileView() } label: { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Settings") } }
             .sheet(item: $edit) { EntryEditor($0) }
     }
     private func stat(_ title: String, value: Int, icon: String, color: Color) -> some View {
