@@ -1,0 +1,325 @@
+{
+  "version": 1,
+  "profile": {
+    "name": "Synthetic Test",
+    "graduation": "2027",
+    "major": "",
+    "highSchool": "",
+    "state": "",
+    "stage": "Getting started",
+    "questbridge": false,
+    "theme": "light",
+    "onboarded": false,
+    "budgetLimit": 1000
+  },
+  "applications": [
+    {
+      "id": "app-1",
+      "name": "Example University",
+      "collegeId": "186131",
+      "status": "In Progress",
+      "round": "Regular Decision",
+      "deadline": "2027-01-01",
+      "deadlineTime": "",
+      "timezone": "America/New_York",
+      "notes": "Synthetic fixture only.",
+      "requirements": [
+        {
+          "id": "req-1",
+          "title": "Application",
+          "required": true,
+          "done": true,
+          "weight": 2
+        },
+        {
+          "id": "req-2",
+          "title": "Submit",
+          "dependsOn": "req-1",
+          "required": true,
+          "done": true,
+          "weight": 1
+        },
+        {
+          "id": "req-3",
+          "title": "Receipt",
+          "dependsOn": "req-2",
+          "required": true,
+          "done": true,
+          "weight": 1
+        },
+        {
+          "id": "req-4",
+          "title": "Optional",
+          "required": false,
+          "done": false,
+          "weight": 1
+        }
+      ],
+      "statusHistory": [
+        {
+          "status": "In Progress",
+          "at": "2026-10-23T12:00:00Z"
+        }
+      ],
+      "futureNativeField": {
+        "nested": [
+          1,
+          true,
+          "preserved"
+        ]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Portal setup",
+      "applicationId": "app-1",
+      "category": "Portal setup",
+      "due": "2027-01-31",
+      "status": "To do",
+      "recurrence": "Monthly",
+      "subtasks": [
+        {
+          "id": "step-1",
+          "title": "Activate account",
+          "done": true
+        }
+      ]
+    }
+  ],
+  "essays": [
+    {
+      "id": "essay-1",
+      "title": "Personal statement",
+      "body": "A synthetic draft.",
+      "versions": [
+        {
+          "id": "version-1",
+          "body": "Earlier draft.",
+          "at": 1792756800000
+        }
+      ],
+      "reviewChecks": [
+        0,
+        3,
+        5
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-1",
+      "name": "fixture.txt",
+      "type": "text/plain",
+      "size": 56,
+      "data": "data:text/plain;base64,UHJpdmF0ZSBmaWxlIGNvbnRlbnQgZml4dHVyZSwgbm90IGEgcmVhbCBzdHVkZW50IHJlY29yZC4="
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "recommendations-1",
+      "title": "Synthetic recommendations",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "aid": [
+    {
+      "id": "aid-1",
+      "title": "Synthetic aid",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not verified",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "scholarships": [
+    {
+      "id": "scholarships-1",
+      "title": "Synthetic scholarships",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "offers": [
+    {
+      "id": "offers-1",
+      "title": "Synthetic offers",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "notes": [
+    {
+      "id": "notes-1",
+      "title": "Synthetic notes",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only.",
+      "body": "A note"
+    }
+  ],
+  "favorites": [
+    "186131"
+  ],
+  "compare": [
+    "186131"
+  ],
+  "customColleges": [
+    {
+      "id": "customColleges-1",
+      "title": "Synthetic customColleges",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "customSchools": [
+    {
+      "id": "customSchools-1",
+      "title": "Synthetic customSchools",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notifications-1",
+      "title": "Synthetic notifications",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "activities": [
+    {
+      "id": "activities-1",
+      "title": "Synthetic activities",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only.",
+      "hours": "3",
+      "weeks": "30"
+    }
+  ],
+  "honors": [
+    {
+      "id": "honors-1",
+      "title": "Synthetic honors",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "visits": [
+    {
+      "id": "visits-1",
+      "title": "Synthetic visits",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "tests": [
+    {
+      "id": "tests-1",
+      "title": "Synthetic tests",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "expenses": [
+    {
+      "id": "expenses-1",
+      "title": "Synthetic expenses",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "goals": [
+    {
+      "id": "goals-1",
+      "title": "Synthetic goals",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "contacts": [
+    {
+      "id": "contacts-1",
+      "title": "Synthetic contacts",
+      "applicationId": "app-1",
+      "amount": "",
+      "due": "2027-01-02",
+      "status": "Not Started",
+      "notes": "Synthetic data only."
+    }
+  ],
+  "events": [
+    {
+      "id": "event-1",
+      "title": "Volleyball game",
+      "date": "2027-01-04",
+      "endDate": "2027-01-04",
+      "allDay": false,
+      "time": "17:00",
+      "endTime": "18:30",
+      "timezone": "America/New_York",
+      "category": "Sports",
+      "repeat": "Weekly",
+      "repeatInterval": 1,
+      "repeatUntil": "2027-03-31",
+      "sourceUid": "game@example.test",
+      "location": "School gym"
+    }
+  ],
+  "dayNotes": [
+    {
+      "id": "day-1",
+      "date": "2027-01-04",
+      "body": "Remember the game."
+    }
+  ],
+  "questbridge": {
+    "status": "Exploring",
+    "outcome": "",
+    "ranking": [
+      "app-1"
+    ]
+  }
+}

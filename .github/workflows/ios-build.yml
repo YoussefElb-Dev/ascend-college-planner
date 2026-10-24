@@ -1,0 +1,95 @@
+name: Native iOS app
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+      - 'dist/core.js'
+      - 'dist/calendar-model.js'
+      - 'dist/vendor/ical.js'
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare public resources and project
+        run: |
+          xcodebuild -version
+          node ios/scripts/prepare.mjs
+          node ios/scripts/fixtures.mjs
+          swift ios/scripts/icon.swift "$PWD/ios"
+          node ios/scripts/project.mjs
+          mkdir -p native-artifacts
+      - name: Website and native data compatibility tests
+        env:
+          ASCEND_ROUNDTRIP_OUTPUT: ${{ github.workspace }}/native-roundtrip.json
+        run: |
+          npm run check
+          swift test --package-path ios
+          node --input-type=module <<'JS'
+          import fs from 'node:fs'; import assert from 'node:assert/strict';
+          import {parseWorkspaceBackup} from './dist/core.js';
+          const raw=JSON.parse(fs.readFileSync('native-roundtrip.json','utf8'));
+          const fixture=JSON.parse(fs.readFileSync('ios/Tests/Fixtures/workspace.json','utf8'));
+          parseWorkspaceBackup(JSON.stringify(raw)); delete raw.exportedAt;
+          assert.deepEqual(raw,fixture);
+          console.log('Native export passes website validation and preserves every fixture field.');
+          JS
+      - name: Build unsigned iPhone app
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/Ascend.xcodeproj -scheme Ascend -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath ios/build/device CODE_SIGNING_ALLOWED=NO build 2>&1 | tee native-artifacts/device-build.log
+          mkdir -p native-artifacts/Payload
+          cp -R ios/build/device/Build/Products/Release-iphoneos/Ascend.app native-artifacts/Payload/
+          file native-artifacts/Payload/Ascend.app/Ascend
+          lipo -archs native-artifacts/Payload/Ascend.app/Ascend | grep arm64
+          test ! -e native-artifacts/Payload/Ascend.app/embedded.mobileprovision
+          cd native-artifacts
+          zip -qry Ascend-1.0-unsigned.ipa Payload
+          shasum -a 256 Ascend-1.0-unsigned.ipa > SHA256SUMS.txt
+          rm -r Payload
+      - name: Select iPhone simulator
+        id: simulator
+        run: |
+          node --input-type=module <<'JS'
+          import {execFileSync} from 'node:child_process'; import fs from 'node:fs';
+          const groups=JSON.parse(execFileSync('xcrun',['simctl','list','devices','available','--json'],{encoding:'utf8'})).devices;
+          const keys=Object.keys(groups).filter(k=>k.includes('iOS')).sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));
+          const devices=keys.flatMap(k=>groups[k].filter(d=>d.name.includes('iPhone')));
+          const device=devices.find(d=>d.name.includes('Pro')) || devices[0];
+          if(!device) throw Error('No available iPhone simulator.');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`id=${device.udid}\n`);
+          console.log(device.name,device.udid);
+          JS
+      - name: Native UI tests on iPhone simulator
+        run: |
+          set -o pipefail
+          xcrun simctl boot '${{ steps.simulator.outputs.id }}' || true
+          xcrun simctl bootstatus '${{ steps.simulator.outputs.id }}' -b
+          xcrun simctl status_bar '${{ steps.simulator.outputs.id }}' override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+          xcodebuild -project ios/Ascend.xcodeproj -scheme Ascend -configuration Debug -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' -derivedDataPath ios/build/simulator -resultBundlePath native-artifacts/Ascend-UI.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee native-artifacts/simulator-tests.log
+      - name: Export native screenshots
+        if: always()
+        run: |
+          if [ -d native-artifacts/Ascend-UI.xcresult ]; then
+            xcrun xcresulttool export attachments --path native-artifacts/Ascend-UI.xcresult --output-path native-artifacts/screenshots || true
+          fi
+          cp ios/INSTALL.md native-artifacts/INSTALL.md
+          xcodebuild -version > native-artifacts/toolchain.txt
+      - name: Upload build, test results and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ascend-native-iOS
+          path: native-artifacts/
+          retention-days: 30
+          if-no-files-found: error

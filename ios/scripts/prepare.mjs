@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const ios = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repo = path.resolve(ios, '..');
+const resources = path.join(ios, 'Ascend', 'Resources');
+const coreResources = path.join(ios, 'Ascend', 'Core', 'Resources');
+fs.mkdirSync(resources, {recursive:true}); fs.mkdirSync(coreResources, {recursive:true});
+for (const name of ['colleges.json', 'college-media.json']) fs.copyFileSync(path.join(repo,'dist','data',name),path.join(resources,name));
+const vendor = fs.readFileSync(path.join(repo,'dist/vendor/ical.js'),'utf8').replace(/export\s*\{\s*ICALmodule\s+as\s+default\s*\};?\s*$/, '');
+const calendar = fs.readFileSync(path.join(repo,'dist/calendar-model.js'),'utf8').replace(/^import .*?;\s*/,'').replace(/\bexport /g,'');
+const script = `"use strict";
+if(typeof structuredClone==='undefined') globalThis.structuredClone=v=>JSON.parse(JSON.stringify(v));
+if(typeof TextEncoder==='undefined') globalThis.TextEncoder=class{encode(s){const b=unescape(encodeURIComponent(s));return Uint8Array.from(b,c=>c.charCodeAt(0));}};
+const ICAL=(()=>{${vendor}\nreturn ICALmodule;})();
+globalThis.AscendCalendar=(()=>{${calendar}\nreturn {parseCalendar,expandPersonalEvents,calendarFile,merge:(a,b)=>mergeCalendar(a,b,()=>"native-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2))};})();`;
+fs.writeFileSync(path.join(coreResources,'calendar.js'),script);
+console.log('Prepared public directory and shared calendar engine. No private workspace files are bundled.');

@@ -13,3 +13,16 @@ qa-artifacts/
 private-imports/
 backups/
 ascend-backup*.json
+ios/.build/
+ios/.swiftpm/
+ios/build/
+ios/DerivedData/
+ios/Ascend/Resources/*.json
+ios/Ascend/Core/Resources/calendar.js
+ios/Ascend/Assets.xcassets/
+**/xcuserdata/
+*.ipa
+*.p12
+*.mobileprovision
+native-roundtrip.json
+native-artifacts/
