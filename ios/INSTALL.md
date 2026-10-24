@@ -10,6 +10,12 @@ To install, sign the IPA with an iOS signing/sideloading setup you control. The 
 
 Official Apple guide: https://developer.apple.com/documentation/xcode/distributing-your-app-to-registered-devices
 
+### Windows installation option
+
+You do not need a Mac to sign an already compiled IPA with a Windows sideloading tool. [Sideloadly](https://sideloadly.io/) supports Windows and free or paid Apple accounts. Follow its current Windows prerequisites, connect your unlocked iPhone, load this IPA, and complete signing locally in that tool. Apple account verification, device trust, and Developer Mode may require actions on your iPhone. A free account typically needs re-signing every seven days; Sideloadly offers refreshing. This app's physical-device installation is not verified until you complete that step. The tool is third-party software; Ascend does not receive its account credentials.
+
+Alternatively, follow the official [AltStore Classic Windows setup](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows). Keep the same bundle identity when refreshing an installed app, and export a backup before removing or replacing an installation, because uninstalling can remove its local workspace.
+
 ## Bring your existing workspace
 
 1. Export a JSON backup from the Ascend website's Settings.

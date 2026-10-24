@@ -20,7 +20,13 @@ import UniformTypeIdentifiers
         if let url = Bundle.main.url(forResource: "calendar", withExtension: "js"), let script = try? String(contentsOf: url, encoding: .utf8) { calendar = try? CalendarEngine(script: script) } else { calendar = nil }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            if preview { workspace = Demo.workspace; return }
+            if preview {
+                workspace = Demo.workspace
+                let arguments = ProcessInfo.processInfo.arguments
+                if arguments.contains("--monochrome") { var p = workspace.profile; p.set("theme", "monochrome"); workspace.profile = p }
+                if arguments.contains("--dark") { var p = workspace.profile; p.set("theme", "dark"); workspace.profile = p }
+                return
+            }
             if FileManager.default.fileExists(atPath: file.path) {
                 let bytes = try Data(contentsOf: file); originalData = bytes
                 workspace = try Workspace.decode(bytes)

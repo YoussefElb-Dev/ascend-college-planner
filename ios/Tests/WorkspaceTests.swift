@@ -55,4 +55,13 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertTrue(exported.contains("UID:game@example.test")); XCTAssertTrue(exported.contains("EXDATE:")); XCTAssertTrue(exported.contains("RRULE:"))
         let reimport = try engine.parse(exported, name: "Reimport"); XCTAssertEqual(reimport.object["records"]?.array.count, 1)
     }
+    func testPersonalRepeatsAndIanaTimeZoneSurviveNativeExport() throws {
+        let w = try fixture(), engine = try engine()
+        let exported = try engine.export(w.records("events"), linked: w.linkedCalendarEntries())
+        XCTAssertTrue(exported.contains("TZID=America/New_York"))
+        let items = try engine.expand(w.records("events"), from: "2027-01-01", to: "2027-01-31")
+        XCTAssertEqual(items.events.count, 4)
+        XCTAssertEqual(items.events.first?.text("time"), "17:00")
+        XCTAssertTrue(items.warnings.isEmpty)
+    }
 }

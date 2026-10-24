@@ -1,6 +1,7 @@
 import XCTest
 
 final class AscendUITests: XCTestCase {
+    override func setUpWithError() throws { continueAfterFailure = false }
     func testNativeTabsPlannerEditingAndTransfer() throws {
         let app = XCUIApplication(); app.launchArguments = ["--preview"]; app.launch()
         XCTAssertTrue(app.staticTexts["Ascend"].firstMatch.waitForExistence(timeout: 15))
@@ -24,6 +25,30 @@ final class AscendUITests: XCTestCase {
         app.buttons["Backup & transfer"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Export full backup"].waitForExistence(timeout: 5))
         screenshot("06-Transfer")
+    }
+    func testApplicationChecklistAndCollegeProfile() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--preview"]; app.launch()
+        app.tabBars.buttons["Colleges"].tap()
+        app.staticTexts["Cornell University"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Your checklist"].waitForExistence(timeout: 5))
+        app.buttons["Reopen Application"].tap()
+        XCTAssertTrue(app.buttons["Complete Application"].exists)
+        app.buttons["Complete Application"].tap()
+        screenshot("07-Checklist")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.segmentedControls.buttons["Explore"].tap()
+        XCTAssertTrue(app.staticTexts["Princeton University"].firstMatch.waitForExistence(timeout: 8))
+        app.staticTexts["Princeton University"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["About the college"].waitForExistence(timeout: 8))
+        screenshot("08-College-profile")
+    }
+    func testMonochromeAndDarkAppearances() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--preview", "--monochrome"]; app.launch()
+        XCTAssertTrue(app.staticTexts["Ascend"].firstMatch.waitForExistence(timeout: 10))
+        screenshot("09-Monochrome")
+        app.terminate(); app.launchArguments = ["--preview", "--dark"]; app.launch()
+        XCTAssertTrue(app.staticTexts["Ascend"].firstMatch.waitForExistence(timeout: 10))
+        screenshot("10-Dark")
     }
     private func screenshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

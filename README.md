@@ -80,3 +80,11 @@ Tasks categorized as `Portal setup` appear on Home with direct portal links, edi
 
 Settings also supports pasting a JSON backup when file selection is unavailable. File and text imports share the same 12 MB limit and schema validation, preview the record counts, and download the current workspace before replacing it. Both import routes run entirely in the browser.
 
+## Native iPhone app
+
+The `ios/` project is a native SwiftUI companion, with Today, college/application checklists, month/week/day planning, personal events, day notes, essays and version history, local documents, financial aid and the other workspace collections. It supports iOS 17+, native Liquid Glass on iOS 26, and light/dark/monochrome appearances. It uses no web view or remote database.
+
+Full JSON backups transfer the complete workspace manually between the website and iPhone. `.ics` import/export exchanges calendar events and deadlines. Full imports preview their contents, replace the destination workspace, and retain the previous saved file locally for recovery. Private student records are never bundled in the app or checked into this repository; CI uses synthetic fixtures only.
+
+The **Native iOS app** Actions workflow builds an unsigned ARM64 IPA on a hosted Mac, runs cross-platform backup compatibility tests and native iPhone simulator UI tests, and saves screenshots/build reports as a private artifact. An unsigned IPA needs signing before it can run on a physical iPhone. See [iPhone build, installation and transfer instructions](ios/INSTALL.md), including Windows sideloading options and Xcode setup.
+

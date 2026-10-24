@@ -38,11 +38,11 @@ enum RecordSpec {
         switch key {
         case "applications": return [.init("major", "Major"), .init("status", "Status", .choices(AppOptions.statuses)), .init("round", "Round", .choices(AppOptions.rounds)), .init("pathway", "Pathway"), .init("deadline", "Deadline", .date), .init("deadlineTime", "Deadline time", .time), .init("timezone", "Time zone (IANA)"), url, notes]
         case "tasks": return [.init("category", "Category", .choices(["Portal setup", "Application", "Essay", "Financial aid", "Recommendation", "Testing", "Personal", "Other"])), .init("status", "Status", .choices(["To do", "In Progress", "Done"])), .init("priority", "Priority", .choices(["High", "Medium", "Low"])), due, .init("time", "Time", .time), .init("timezone", "Time zone (IANA)"), .init("recurrence", "Repeat", .choices(["Never", "Daily", "Weekly", "Monthly"])), notes]
-        case "essays": return [.init("prompt", "Prompt", .paragraph), .init("body", "Draft", .paragraph), .init("wordLimit", "Word limit", .number), .init("status", "Status", .choices(["Not Started", "Drafting", "Revising", "Complete"])), due, notes]
+        case "essays": return [.init("category", "Writing type"), .init("tags", "Tags"), .init("prompt", "Prompt", .paragraph), .init("body", "Draft", .paragraph), .init("limit", "Word limit", .number), .init("status", "Status", .choices(["Not Started", "Drafting", "Revising", "Complete"])), due, notes]
         case "notes": return [.init("tags", "Tags"), .init("body", "Note", .paragraph)]
         case "aid": return [category, .init("status", "Status", .choices(["Not verified", "Not Started", "In Progress", "Submitted", "Complete", "Not applicable"])), due, url, notes]
-        case "scholarships": return [.init("amount", "Amount (USD)", .number), due, .init("status", "Status", .choices(["Saved", "In Progress", "Submitted", "Awarded", "Not selected"])), .init("verification", "Verification"), url, notes]
-        case "recommendations": return [.init("role", "Recommender role"), .init("email", "Email"), .init("requested", "Requested on", .date), due, generalStatus, notes]
+        case "scholarships": return [.init("amount", "Amount (USD)", .number), due, .init("status", "Status", .choices(["Researching", "Not Started", "In Progress", "Submitted", "Awarded", "Not Awarded"])), .init("verification", "Verification", .choices(["Not verified", "Verified by me"])), url, notes]
+        case "recommendations": return [.init("role", "Recommender role"), .init("contact", "Email / contact"), .init("requested", "Requested on", .date), due, .init("status", "Status", .choices(["Not Requested", "Planning to Request", "Requested", "Recommender Confirmed", "Submitted", "Unable to Confirm"])), notes]
         case "activities": return [organization, category, .init("grades", "Grade levels"), .init("hours", "Hours per week", .number), .init("weeks", "Weeks per year", .number), .init("description", "Description", .paragraph)]
         case "honors": return [organization, .init("level", "Recognition level"), .init("grades", "Grade levels"), .init("description", "Description", .paragraph)]
         case "tests": return [.init("subject", "Subject"), due, .init("status", "Status", .choices(["Planning", "Registered", "Preparing", "Done", "Canceled"])), .init("score", "Score"), .init("target", "Target score"), notes]
@@ -50,7 +50,7 @@ enum RecordSpec {
         case "contacts": return [.init("role", "Role"), organization, .init("email", "Email"), .init("phone", "Phone"), due, .init("status", "Status"), .init("history", "Contact history", .paragraph), notes]
         case "goals": return [due, .init("status", "Status", .choices(["To do", "In Progress", "Done"])), notes]
         case "expenses": return [category, .init("amount", "Amount (USD)", .number), due, .init("status", "Status", .choices(["Planned", "Paid", "Waived"])), notes]
-        case "offers": return [.init("status", "Decision", .choices(["Awaiting Decision", "Accepted", "Waitlisted", "Rejected", "Withdrawn"])), .init("decisionDate", "Decision date", .date), .init("tuition", "Annual tuition (USD)", .number), .init("housing", "Housing (USD)", .number), .init("other", "Other costs (USD)", .number), .init("grant", "Grants & scholarships (USD)", .number), notes]
+        case "offers": return [.init("year", "Academic year"), .init("verification", "These figures are", .choices(["Estimate", "Confirmed offer"])), .init("cost", "Annual cost of attendance (USD)", .number), .init("grants", "Grants (USD)", .number), .init("scholarships", "Scholarships (USD)", .number), .init("loans", "Loans offered (USD)", .number), .init("workstudy", "Work-study offered (USD)", .number), notes]
         case "events": return [.init("date", "Starts on", .date), .init("endDate", "Ends on", .date), .init("time", "Start time", .time), .init("endTime", "End time", .time), .init("timezone", "Time zone (IANA)"), .init("category", "Category", .choices(["Personal", "Sports", "School", "Study", "Work", "Family", "Health", "Social", "Travel", "Other"])), .init("location", "Location"), .init("repeat", "Repeat", .choices(["None", "Daily", "Weekly", "Monthly", "Yearly"])), .init("repeatUntil", "Repeat until", .date), .init("status", "Status", .choices(["Planned", "Done", "Canceled"])), notes]
         default: return [generalStatus, due, url, notes]
         }
@@ -102,6 +102,11 @@ struct EntryEditor: View {
         }
     }
     private func save() {
+        for field in RecordSpec.fields(collection) {
+            if case .number = field.kind, !entry.text(field.key).isEmpty {
+                guard let number = Double(entry.text(field.key)), number.isFinite, number >= 0, number <= 10000000 else { store.error = "Enter a valid nonnegative number for \(field.label)."; return }
+            }
+        }
         var next = entry
         next.set("updated", Date().timeIntervalSince1970 * 1000)
         if collection == "essays", next.text("body") != original.text("body"), !original.text("body").isEmpty {
@@ -177,7 +182,7 @@ struct RecordDetail: View {
                 Panel {
                     SectionHeading(title: "Steps", subtitle: entry.text("category"))
                     ForEach(entry.entries("subtasks")) { step in HStack { CheckButton(done: step.flag("done"), label: step.title) { toggleStep(step.id) }; Text(step.title).font(.subheadline).strikethrough(step.flag("done")) } }
-                    HStack { TextField("Add a step", text: $subtask); Button { addStep() } label: { Image(systemName: "plus.circle.fill").font(.title2) }.disabled(subtask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                    HStack { TextField("Add a step", text: $subtask); Button { addStep() } label: { Image(systemName: "plus.circle.fill").font(.title2) }.disabled(subtask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Add step") }
                 }
             }
             Panel {
@@ -193,6 +198,10 @@ struct RecordDetail: View {
                     DisclosureGroup(Date(timeIntervalSince1970: v.number("at") / 1000).formatted(date: .abbreviated, time: .shortened)) { Text(v.text("body")).font(.subheadline).textSelection(.enabled); Button("Restore this draft") { restoreVersion = v }.padding(.top, 8) }
                 } }
             }
+            if collection == "essays" { essayReview }
+            if collection == "offers" {
+                Panel { SectionHeading(title: "Your annual net cost", subtitle: entry.text("verification").isEmpty ? "Estimate" : entry.text("verification")); Text(entry.text("cost").isEmpty ? "Not recorded" : (entry.number("cost") - entry.number("grants") - entry.number("scholarships")).formatted(.currency(code: "USD"))).font(.title.weight(.semibold)); Text("Cost of attendance minus grants and scholarships. Loans are borrowing; work-study must be earned. Verify figures with the college.").font(.caption).foregroundStyle(.secondary) }
+            }
             if entry.flag("archived") { Button("Restore record") { var e = entry; e.set("archived", false); store.save(collection, e) }.buttonStyle(.bordered) }
             else { Button("Archive record", role: .destructive) { store.archive(collection, id) }.font(.subheadline) }
         }.navigationTitle(collection == "tasks" ? "Task" : "Details").navigationBarTitleDisplayMode(.inline)
@@ -203,4 +212,14 @@ struct RecordDetail: View {
     private func toggleStep(_ stepID: String) { var e = entry; e.set("subtasks", entries: e.entries("subtasks").map { r in var s = r; if s.id == stepID { s.set("done", !s.flag("done")) }; return s }); store.save(collection, e) }
     private func addStep() { var e = entry; var s = Entry.new(title: subtask.trimmingCharacters(in: .whitespacesAndNewlines)); s.set("done", false); e.set("subtasks", entries: e.entries("subtasks") + [s]); if store.save(collection, e) { subtask = "" } }
     private func restoreDraft() { guard let v = restoreVersion else { return }; var e = entry; var snapshot = Entry.new(); snapshot.set("body", e.text("body")); snapshot.set("at", Date().timeIntervalSince1970 * 1000); e.set("versions", entries: e.entries("versions") + [snapshot]); e.set("body", v.text("body")); store.save(collection, e); restoreVersion = nil }
+    private var essayReview: some View {
+        let checks = entry.fields["reviewChecks"]?.array ?? []
+        let labels = ["The opening gives a specific moment or detail.", "The draft shows my actions and perspective.", "Reflection explains why this experience matters.", "Every paragraph supports the prompt.", "College-specific names and details are correct.", "I read it aloud and checked the word limit."]
+        let count = entry.text("body").split { $0.isWhitespace || $0.isNewline }.count
+        return Panel {
+            SectionHeading(title: "Revision checklist", subtitle: "\(count) words" + (entry.number("limit") > 0 ? " / \(Int(entry.number("limit")))" : ""))
+            if entry.number("limit") > 0 && Double(count) > entry.number("limit") { Text("\(count - Int(entry.number("limit"))) words over the limit").font(.caption).foregroundStyle(.red) }
+            ForEach(Array(labels.enumerated()), id: \.offset) { index, label in HStack(alignment: .top) { CheckButton(done: checks.contains(.number(Double(index))), label: label) { var e = entry; var next = checks; let value = JSONValue.number(Double(index)); if let i = next.firstIndex(of: value) { next.remove(at: i) } else { next.append(value) }; e.fields["reviewChecks"] = .array(next); store.save(collection, e) }; Text(label).font(.subheadline).padding(.top, 10) } }
+        }
+    }
 }
