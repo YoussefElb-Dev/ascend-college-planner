@@ -421,6 +421,12 @@ export function validateState(value) {
     if (value[key]) clean[key] = structuredClone(value[key]);
   return clean;
 }
+export function parseWorkspaceBackup(text) {
+  if (typeof text !== "string") throw new Error("Choose a valid backup.");
+  if (new Blob([text]).size > 12 * 1024 * 1024)
+    throw new Error("Backup is too large (12 MB maximum).");
+  return validateState(JSON.parse(text));
+}
 export function loadState(storage = globalThis.localStorage) {
   const saved = storage.getItem(STORAGE_KEY);
   return saved ? validateState(JSON.parse(saved)) : blankState();

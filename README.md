@@ -78,3 +78,5 @@ Calendar parsing and recurrence use the vendored `ical.js` 2.2.1 ES module from 
 
 Tasks categorized as `Portal setup` appear on Home with direct portal links, editable steps, personal target dates, and a completed section. Completing or reopening a card updates its existing task. Financial aid records support `Not verified` so an unreviewed receipt is not presented as a confirmed missing submission.
 
+Settings also supports pasting a JSON backup when file selection is unavailable. File and text imports share the same 12 MB limit and schema validation, preview the record counts, and download the current workspace before replacing it. Both import routes run entirely in the browser.
+

@@ -18,6 +18,7 @@ import {
   progress,
   blankState,
   validateState,
+  parseWorkspaceBackup,
   loadState,
   persistState,
   download,
@@ -1822,7 +1823,7 @@ function settingsPage() {
       "Settings",
       "Manage your profile, appearance, and browser-local workspace.",
     ) +
-    `<div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your profile</h2><p>The person behind the possibilities.</p></div>${btn("Edit profile", "profile", "secondary", "edit")}</div><div class="profile-intro"><span class="avatar large">${h(initials(state.profile.name || "You"))}</span><div><h3>${h(state.profile.name || "Your next chapter")}</h3><p>Class of ${h(state.profile.graduation || "—")}</p></div></div><div class="detail-list"><div><span>High school</span><strong>${h(state.profile.highSchool || "Not selected")}</strong></div><div><span>Academic interests</span><strong>${h(state.profile.major || "Still exploring")}</strong></div><div><span>Home state</span><strong>${h(state.profile.state || "Not set")}</strong></div><div><span>Application stage</span><strong>${h(state.profile.stage || "Getting started")}</strong></div></div></section><section class="panel"><h2>Appearance</h2><p class="body-copy">Liquid glass, in your preferred palette.</p>${appearanceOptions()}<div class="setting-row"><div><strong>QuestBridge workspace</strong><p>An optional place for your QuestBridge plans.</p></div><input type="checkbox" id="quest-toggle" aria-label="Enable QuestBridge workspace" ${state.profile.questbridge ? "checked" : ""}></div><div class="info-note">${icon("leaf")}Motion and transparency follow your device’s accessibility settings.</div></section><section class="panel data-panel"><div class="panel-heading"><div><span class="eyebrow">YOUR BROWSER. YOUR DATA.</span><h2>Backup & data</h2></div><span class="metric-icon mint">${icon("shield")}</span></div><p class="body-copy">Applications, essays, documents, and personal information are saved only in this browser on this device. There is no account, database connection, analytics, or cloud sync. Other people using this browser profile can access your workspace.</p><div class="storage-meter"><span>${(bytes / 1024).toFixed(0)} KB saved locally</span><span>Browser capacity varies</span></div><p class="body-copy">Clearing site data, switching browsers, or using private browsing can remove or separate your workspace. Download a backup regularly. Backups include your private files; keep them somewhere you trust.</p><div class="button-group">${btn("Download full backup", "export-backup", "primary", "download")}${btn("Import backup", "import-backup", "secondary", "upload")}${btn("Export applications CSV", "export-applications", "ghost", "download")}</div><input id="backup-file" type="file" accept=".json,application/json" hidden></section><section class="panel data-panel"><h2>Reset workspace</h2><p class="body-copy">Remove all personal workspace data from this browser. The bundled school directory stays available.</p>${btn("Reset this workspace", "reset-workspace", "danger", "trash")}</section></div>`
+    `<div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your profile</h2><p>The person behind the possibilities.</p></div>${btn("Edit profile", "profile", "secondary", "edit")}</div><div class="profile-intro"><span class="avatar large">${h(initials(state.profile.name || "You"))}</span><div><h3>${h(state.profile.name || "Your next chapter")}</h3><p>Class of ${h(state.profile.graduation || "—")}</p></div></div><div class="detail-list"><div><span>High school</span><strong>${h(state.profile.highSchool || "Not selected")}</strong></div><div><span>Academic interests</span><strong>${h(state.profile.major || "Still exploring")}</strong></div><div><span>Home state</span><strong>${h(state.profile.state || "Not set")}</strong></div><div><span>Application stage</span><strong>${h(state.profile.stage || "Getting started")}</strong></div></div></section><section class="panel"><h2>Appearance</h2><p class="body-copy">Liquid glass, in your preferred palette.</p>${appearanceOptions()}<div class="setting-row"><div><strong>QuestBridge workspace</strong><p>An optional place for your QuestBridge plans.</p></div><input type="checkbox" id="quest-toggle" aria-label="Enable QuestBridge workspace" ${state.profile.questbridge ? "checked" : ""}></div><div class="info-note">${icon("leaf")}Motion and transparency follow your device’s accessibility settings.</div></section><section class="panel data-panel"><div class="panel-heading"><div><span class="eyebrow">YOUR BROWSER. YOUR DATA.</span><h2>Backup & data</h2></div><span class="metric-icon mint">${icon("shield")}</span></div><p class="body-copy">Applications, essays, documents, and personal information are saved only in this browser on this device. There is no account, database connection, analytics, or cloud sync. Other people using this browser profile can access your workspace.</p><div class="storage-meter"><span>${(bytes / 1024).toFixed(0)} KB saved locally</span><span>Browser capacity varies</span></div><p class="body-copy">Clearing site data, switching browsers, or using private browsing can remove or separate your workspace. Download a backup regularly. Backups include your private files; keep them somewhere you trust.</p><div class="button-group">${btn("Download full backup", "export-backup", "primary", "download")}${btn("Import backup", "import-backup", "secondary", "upload")}${btn("Paste backup", "paste-backup", "ghost", "edit")}${btn("Export applications CSV", "export-applications", "ghost", "download")}</div><input id="backup-file" type="file" accept=".json,application/json" hidden></section><section class="panel data-panel"><h2>Reset workspace</h2><p class="body-copy">Remove all personal workspace data from this browser. The bundled school directory stays available.</p>${btn("Reset this workspace", "reset-workspace", "danger", "trash")}</section></div>`
   );
 }
 function profileForm(onboard = false) {
@@ -1864,6 +1865,29 @@ function exportBackup() {
     "application/json",
   );
   toast("Backup downloaded. Keep it somewhere safe.");
+}
+function previewWorkspaceImport(imported) {
+  formDialog(
+    "Bring your workspace with you.",
+    `<div class="full body-copy"><p>This backup contains <strong>${imported.applications.length} applications, ${imported.essays.length} essays, ${imported.tasks.length} tasks, and ${imported.documents.length} files.</strong></p><p>Importing replaces this browser’s current workspace. A backup of your current workspace will download first.</p></div>`,
+    () => {
+      exportBackup();
+      const old = state, wasLocked = storageReadFailed;
+      state = imported;
+      storageReadFailed = false;
+      if (!save()) {
+        state = old;
+        storageReadFailed = wasLocked;
+        return false;
+      }
+      selectedEssay = "";
+      appFilter = "All";
+      navigate("home");
+      toast("Your workspace, right where you left it.");
+      return true;
+    },
+    "Import workspace",
+  );
 }
 function globalSearch() {
   loadDirectory("colleges");
@@ -2614,6 +2638,19 @@ async function action(value, el) {
     case "import-backup":
       document.querySelector("#backup-file").click();
       break;
+    case "paste-backup":
+      formDialog(
+        "Paste a workspace backup",
+        `<p class="full body-copy">Paste the contents of an Ascend JSON backup. It is validated here in your browser before you review the import.</p>${textarea("Backup JSON", "backupText", "", 'required rows="10" maxlength="12582912" spellcheck="false" autocomplete="off"')}`,
+        (v) => {
+          const imported = parseWorkspaceBackup(v.backupText);
+          previewWorkspaceImport(imported);
+          return false;
+        },
+        "Review backup",
+        true,
+      );
+      break;
     case "export-applications":
       download(
         "ascend-applications.csv",
@@ -2899,29 +2936,7 @@ document.addEventListener("change", async (e) => {
     try {
       if (el.files[0].size > 12 * 1024 * 1024)
         throw new Error("Backup is too large (12 MB maximum).");
-      const imported = validateState(JSON.parse(await el.files[0].text()));
-      formDialog(
-        "Bring your workspace with you.",
-        `<div class="full body-copy"><p>This backup contains <strong>${imported.applications.length} applications, ${imported.essays.length} essays, ${imported.tasks.length} tasks, and ${imported.documents.length} files.</strong></p><p>Importing replaces this browser’s current workspace. A backup of your current workspace will download first.</p></div>`,
-        () => {
-          exportBackup();
-          const old = state,
-            wasLocked = storageReadFailed;
-          state = imported;
-          storageReadFailed = false;
-          if (!save()) {
-            state = old;
-            storageReadFailed = wasLocked;
-            return false;
-          }
-          selectedEssay = "";
-          appFilter = "All";
-          navigate("home");
-          toast("Your workspace, right where you left it.");
-          return true;
-        },
-        "Import workspace",
-      );
+      previewWorkspaceImport(parseWorkspaceBackup(await el.files[0].text()));
     } catch (error) {
       toast(`Could not import: ${error.message}`);
     }

@@ -5,6 +5,7 @@ import {
   STORAGE_KEY,
   blankState,
   validateState,
+  parseWorkspaceBackup,
   persistState,
   loadState,
   progress,
@@ -56,6 +57,15 @@ test("storage quota failures are visible to the caller and never silently treate
       }),
     /Quota/,
   );
+});
+test("file and pasted backup text share validation and reject invalid or oversized data", () => {
+  const original = blankState();
+  original.profile.name = "A student";
+  assert.deepEqual(parseWorkspaceBackup(JSON.stringify(original)), original);
+  assert.throws(() => parseWorkspaceBackup("{invalid"));
+  assert.throws(() => parseWorkspaceBackup(JSON.stringify({ version: 1, profile: {} })), /missing/);
+  assert.throws(() => parseWorkspaceBackup(" ".repeat(12 * 1024 * 1024 + 1)), /12 MB/);
+  assert.equal(original.profile.name, "A student");
 });
 test("backup validation rejects malformed versions, duplicates, unsafe IDs, and active file types", () => {
   assert.throws(() => validateState({ version: 2 }));
