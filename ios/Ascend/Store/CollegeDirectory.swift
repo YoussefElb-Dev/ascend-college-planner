@@ -31,7 +31,15 @@ import SwiftUI
             let page = try await query("en.wikipedia.org", ["titles": college.title, "redirects": "1", "prop": "extracts|info|images|extlinks", "exintro": "1", "explaintext": "1", "imlimit": "100", "ellimit": "500", "inprop": "url"])
             guard page["missing"] == nil, let extract = page["extract"]?.text, !extract.isEmpty, (page["extlinks"]?.array ?? []).contains(where: { link in guard let host = URL(string: link.object["*"]?.text ?? "")?.host else { return false }; return host == domain || host.hasSuffix("." + domain) || domain.hasSuffix("." + host) }) else { return }
             var value = Entry(["description": .string(String(extract.prefix(8000))), "article": .string(page["fullurl"]?.text ?? "")])
-            let images = (page["images"]?.array ?? []).map { $0.object["title"]?.text ?? "" }.filter { $0.range(of: "\\.(jpe?g|png)$", options: .regularExpression) != nil && $0.range(of: "seal|logo|flag|map|portrait|icon|signature|wordmark|athletics|sport|football|basketball|medal|plaque", options: [.regularExpression, .caseInsensitive]) == nil }.sorted { ($0.range(of: "campus|aerial|quad|main.building", options: [.regularExpression, .caseInsensitive]) == nil ? 1 : 0) < ($1.range(of: "campus|aerial|quad|main.building", options: [.regularExpression, .caseInsensitive]) == nil ? 1 : 0) }
+            let rawImages: [JSONValue] = page["images"]?.array ?? []
+            let titles: [String] = rawImages.map { $0.object["title"]?.text ?? "" }
+            let candidates: [String] = titles.filter { title in
+                let raster = title.range(of: "\\.(jpe?g|png)$", options: .regularExpression) != nil
+                let excluded = title.range(of: "seal|logo|flag|map|portrait|icon|signature|wordmark|athletics|sport|football|basketball|medal|plaque", options: [.regularExpression, .caseInsensitive]) != nil
+                return raster && !excluded
+            }
+            func priority(_ title: String) -> Int { title.range(of: "campus|aerial|quad|main.building", options: [.regularExpression, .caseInsensitive]) == nil ? 1 : 0 }
+            let images: [String] = candidates.sorted { priority($0) < priority($1) }
             for title in images.prefix(2) {
                 let info = try await query("commons.wikimedia.org", ["titles": title, "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": "960"])
                 let m = info["imageinfo"]?.array.first?.object ?? [:], ext = m["extmetadata"]?.object ?? [:]

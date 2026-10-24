@@ -99,6 +99,7 @@ public struct Workspace: Equatable, Sendable {
         for key in ["name", "graduation", "major", "highSchool", "state", "stage", "theme"] {
             if let v = profile.fields[key], v != .null { guard case .string = v else { try fail("Invalid profile field."); return } }
         }
+        if let budget = profile.fields["budgetLimit"], budget != .null { guard let n = Double(budget.text.isEmpty ? "0" : budget.text), n.isFinite, n >= 0 else { try fail("Invalid application budget."); return } }
         for key in ["favorites", "compare"] {
             for v in root[key]?.array ?? [] { guard Self.validID(v.text) else { try fail("Invalid saved college ID."); return } }
         }
@@ -125,13 +126,16 @@ public struct Workspace: Equatable, Sendable {
                     guard case .string? = r.fields["name"], case .array? = r.fields["requirements"], case .array? = r.fields["statusHistory"] else { try fail("Incomplete application record."); return }
                     var reqIDs = Set<String>()
                     for q in r.entries("requirements") {
-                        guard Self.validID(q.id), reqIDs.insert(q.id).inserted, case .string? = q.fields["title"], (q.fields["weight"] == nil || (q.number("weight") >= 1 && q.number("weight") <= 100)) else { try fail("Invalid application checklist."); return }
+                        guard Self.validID(q.id), reqIDs.insert(q.id).inserted, case .string? = q.fields["title"], (q.fields["weight"] == nil || q.fields["weight"] == .null || (q.number("weight") >= 1 && q.number("weight") <= 100)), (q.text("dependsOn").isEmpty || Self.validID(q.text("dependsOn"))) else { try fail("Invalid application checklist."); return }
                     }
                 }
                 if key == "tasks" { guard case .string? = r.fields["title"] else { try fail("Task needs a title."); return }; if r.fields["subtasks"] != nil { guard case .array? = r.fields["subtasks"] else { try fail("Invalid subtasks."); return } } }
                 if key == "essays" {
                     guard case .string? = r.fields["title"], case .string? = r.fields["body"], case .array? = r.fields["versions"] else { try fail("Invalid essay draft."); return }
                     for v in r.entries("versions") { guard Self.validID(v.id), case .string? = v.fields["body"], case .number? = v.fields["at"] else { try fail("Invalid essay version."); return } }
+                    if let checks = r.fields["reviewChecks"], checks != .null {
+                        guard case .array = checks, checks.array.allSatisfy({ if case .number(let n) = $0 { return n >= 0 && n <= 5 && n.rounded() == n }; return false }) else { try fail("Invalid essay review checklist."); return }
+                    }
                 }
                 if key == "documents" { try Self.validateDocument(r) }
                 if key == "activities" && (r.number("hours") > 168 || r.number("weeks") > 52) { try fail("Invalid activity time commitment.") }
@@ -153,7 +157,7 @@ public struct Workspace: Equatable, Sendable {
     public static func validateDocument(_ r: Entry) throws {
         let allowed = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain", "image/png", "image/jpeg", "image/gif", "image/webp"]
         let parts = r.text("data").components(separatedBy: ";base64,")
-        guard parts.count == 2, parts[0].hasPrefix("data:"), allowed.contains(String(parts[0].dropFirst(5))), let d = Data(base64Encoded: parts[1]), d.count <= 1024 * 1024, r.number("size") >= 0, r.number("size") <= 1024 * 1024 else { throw WorkspaceError.invalid("Invalid or unsupported document.") }
+        guard parts.count == 2, parts[0].hasPrefix("data:"), allowed.contains(String(parts[0].dropFirst(5)).lowercased()), let d = Data(base64Encoded: parts[1]), d.count <= 1024 * 1024, case .string? = r.fields["name"], case .string? = r.fields["type"], case .number? = r.fields["size"], r.number("size") >= 0, r.number("size") <= 1024 * 1024 else { throw WorkspaceError.invalid("Invalid or unsupported document.") }
     }
     public static func progress(_ app: Entry) -> Double {
         let list = app.entries("requirements").filter { $0.fields["required"] != .bool(false) && !$0.flag("exempt") }

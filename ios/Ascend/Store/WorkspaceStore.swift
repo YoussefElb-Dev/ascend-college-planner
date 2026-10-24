@@ -47,7 +47,7 @@ import UniformTypeIdentifiers
         try commit(next); recoveryRequired = false; originalData = nil
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastImport")
     }
-    func save(_ collection: String, _ entry: Entry) -> Bool { change { $0.upsert(collection, entry) } }
+    @discardableResult func save(_ collection: String, _ entry: Entry) -> Bool { change { $0.upsert(collection, entry) } }
     func archive(_ collection: String, _ id: String) { change { w in guard var e = w.entry(collection, id) else { return }; e.set("archived", true); w.upsert(collection, e) } }
     func toggleTask(_ id: String) { change { $0.toggleTask(id) } }
     func toggleRequirement(_ app: String, _ id: String) { change { try $0.toggleRequirement(appID: app, requirementID: id) } }
