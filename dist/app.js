@@ -34,6 +34,7 @@ import {
 import { icon } from "./icons.js";
 import { createExtras } from "./extras.js";
 import { homePage } from "./home.js";
+import { APPLICATION_TABS, applicationChecklist, matchesApplicationView } from "./application-views.js";
 import { createPlanner } from "./planner.js";
 import {
   collegeCardMedia,
@@ -486,19 +487,15 @@ function dashboard() {
 function filterTabs(compact = false) {
   const values = compact
     ? ["All", "In Progress", "Submitted", "Accepted"]
-    : ["All", ...STATUSES];
-  return `<div class="filter-tabs ${compact ? "compact" : ""}" aria-label="Application status">${values.map((s) => `<button class="${appFilter === s ? "selected" : ""}" data-action="app-filter:${s}">${s}<span>${activeApps().filter((a) => s === "All" || (s === "Submitted" ? ["Submitted", "Awaiting Decision"].includes(a.status) : a.status === s)).length}</span></button>`).join("")}</div>`;
+    : APPLICATION_TABS;
+  const prefix = compact ? "home-apps" : "applications";
+  return `<div class="filter-tabs ${compact ? "compact" : "application-status-tabs"}" role="tablist" aria-label="Application views">${values.map((s, i) => `<button id="${prefix}-tab-${i}" role="tab" aria-selected="${appFilter === s}" aria-controls="${prefix}-results" tabindex="${appFilter === s || (!values.includes(appFilter) && i === 0) ? 0 : -1}" class="${appFilter === s ? "selected" : ""}" data-action="app-filter:${s}">${s}<span>${state.applications.filter((a) => matchesApplicationView(a, s)).length}</span></button>`).join("")}</div>`;
 }
 function filteredApps() {
   return state.applications
     .filter(
       (a) =>
-        (appFilter === "Archived" ? a.archived : !a.archived) &&
-        (appFilter === "All" ||
-          appFilter === "Archived" ||
-          (appFilter === "Submitted"
-            ? ["Submitted", "Awaiting Decision"].includes(a.status)
-            : a.status === appFilter)) &&
+        matchesApplicationView(a, appFilter) &&
         [a.name, a.major, a.round]
           .join(" ")
           .toLowerCase()
@@ -517,14 +514,15 @@ function filteredApps() {
 function applicationsTable(home = false) {
   let list = filteredApps();
   if (home) list = list.slice(0, 5);
+  const panelAttributes = `id="${home ? "home-apps" : "applications"}-results" role="tabpanel" aria-label="${h(appFilter)} applications"`;
   if (!list.length)
-    return empty(
+    return `<div ${panelAttributes}>` + empty(
       "school",
-      activeApps().length ? "A fresh view." : "No applications yet",
+      activeApps().length ? (appFilter === "Complete" && !appQuery ? "No completed checklists yet" : "No matching applications") : "No applications yet",
       activeApps().length
-        ? "No applications match this view. Try another filter."
+        ? (appFilter === "Complete" && !appQuery ? "Applications appear here when every required checklist item is done. Try opening another tab to keep working on them." : "Try another status tab or clear your search to see more applications.")
         : "Add a college to track its requirements and deadlines.",
-      btn(
+      activeApps().length ? btn("View all applications", "reset-app-filters", "secondary", "arrow") : btn(
         "Add your first application",
         "add-application",
         "secondary",
@@ -533,8 +531,11 @@ function applicationsTable(home = false) {
         '<a href="#colleges" class="text-link">Explore colleges ' +
         icon("arrow") +
         "</a>",
-    );
-  return `<div class="application-table"><div class="table-labels"><span>COLLEGE & APPLICATION</span><span>INTENDED MAJOR</span><span>STATUS</span><span>NEXT DEADLINE</span><span></span></div>${list.map((a) => `<div class="application-row"><a href="#application/${a.id}" class="college-cell">${monogram(a.name)}<span><strong>${h(a.name)}</strong><small>${h(a.round || "Round not set")}</small></span></a><span class="major-cell"><span>${h(a.major || "Major to explore")}</span><span class="row-progress"><i style="width:${progress(a)}%"></i></span><small>${progress(a)}% complete</small></span><span>${badge(a.status)}</span><span class="deadline-cell">${a.deadline ? `<small class="${daysUntil(a.deadline) < 0 ? "danger-text" : ""}">${dueLabel(a.deadline)}</small><strong>${dateLabel(a.deadline, true)}</strong>` : "<small>Verify the official date</small><strong>No deadline set</strong>"}</span><span class="row-actions"><a class="icon-btn" aria-label="Open ${h(a.name)} workspace" href="#application/${a.id}">${icon("arrow")}</a>${ibtn("more", `Actions for ${a.name}`, `app-menu:${a.id}`)}</span></div>`).join("")}</div>${home && filteredApps().length > 5 ? '<a class="table-footer-link" href="#applications">View all applications ' + icon("arrow") + "</a>" : ""}`;
+    ) + "</div>";
+  return `<div ${panelAttributes} class="application-table"><div class="table-labels"><span>COLLEGE & CHECKLIST PROGRESS</span><span>INTENDED MAJOR</span><span>STATUS</span><span>NEXT DEADLINE</span><span></span></div>${list.map((a) => {
+    const checklist = applicationChecklist(a);
+    return `<div class="application-row"><a href="#application/${a.id}" class="college-cell">${monogram(a.name)}<span><strong>${h(a.name)}</strong><small>${h(a.round || "Round not set")}</small><span class="application-checklist ${checklist.complete ? "is-complete" : ""}"><span class="application-progress-label"><b>${checklist.percent}%</b><span>${checklist.total ? `${checklist.done}/${checklist.total} required${checklist.complete ? " · Complete" : ""}` : "No required items yet"}</span></span><progress class="application-progress-bar" value="${checklist.percent}" max="100" aria-label="${h(a.name)} required checklist progress">${checklist.percent}%</progress></span></span></a><span class="major-cell"><span>${h(a.major || "Major to explore")}</span></span><span>${badge(a.status)}</span><span class="deadline-cell">${a.deadline ? `<small class="${daysUntil(a.deadline) < 0 ? "danger-text" : ""}">${dueLabel(a.deadline)}</small><strong>${dateLabel(a.deadline, true)}</strong>` : "<small>Verify the official date</small><strong>No deadline set</strong>"}</span><span class="row-actions"><a class="icon-btn" aria-label="Open ${h(a.name)} workspace" href="#application/${a.id}">${icon("arrow")}</a>${ibtn("more", `Actions for ${a.name}`, `app-menu:${a.id}`)}</span></div>`;
+  }).join("")}</div>${home && filteredApps().length > 5 ? '<a class="table-footer-link" href="#applications">View all applications ' + icon("arrow") + "</a>" : ""}`;
 }
 function applicationsPage() {
   return (
@@ -543,7 +544,7 @@ function applicationsPage() {
       "One workspace for every school on your list.",
       btn("Add application", "add-application", "primary", "plus"),
     ) +
-    `<section class="panel"><div class="toolbar"><label class="search-field">${icon("search")}<input id="app-search" placeholder="Find an application…" value="${h(appQuery)}" aria-label="Find an application"></label><select id="app-status" aria-label="Filter applications">${["All", ...STATUSES, "Archived"].map((s) => `<option ${s === appFilter ? "selected" : ""}>${s}</option>`).join("")}</select><select id="app-sort" aria-label="Sort applications">${[
+    `<section class="panel applications-list-panel">${filterTabs()}<p class="application-view-hint">Complete = every required checklist item done. Submitted applications can still have items to finish.</p><div class="toolbar"><label class="search-field">${icon("search")}<input id="app-search" placeholder="Find an application…" value="${h(appQuery)}" aria-label="Find an application"></label><select id="app-status" aria-label="Filter applications">${["All", ...STATUSES, "Complete", "Archived"].map((s) => `<option ${s === appFilter ? "selected" : ""}>${s}</option>`).join("")}</select><select id="app-sort" aria-label="Sort applications">${[
       ["added", "Added order"],
       ["name", "College name"],
       ["deadline", "Deadline"],
@@ -555,7 +556,7 @@ function applicationsPage() {
       )
       .join(
         "",
-      )}</select><span class="muted">${filteredApps().length} applications</span></div>${applicationsTable()}</section>`
+      )}</select><span id="app-results-count" class="muted" role="status">${filteredApps().length} of ${state.applications.filter((a) => appFilter === "Archived" ? a.archived : !a.archived).length} applications</span></div>${applicationsTable()}</section>`
   );
 }
 function addApplication(college = null, existing = null) {
@@ -2118,6 +2119,13 @@ async function action(value, el) {
     case "app-filter":
       appFilter = arg;
       render();
+      document.querySelector(`.filter-tabs [data-action="app-filter:${CSS.escape(arg)}"]`)?.focus();
+      break;
+    case "reset-app-filters":
+      appFilter = "All";
+      appQuery = "";
+      render();
+      document.querySelector('.filter-tabs [data-action="app-filter:All"]')?.focus();
       break;
     case "add-application":
       addApplication();
@@ -2830,14 +2838,14 @@ document.addEventListener("input", (e) => {
   }
   if (el.id === "app-search") {
     appQuery = el.value;
-    const p =
-      document.querySelector(".application-table") ||
-      document.querySelector(".empty-state");
+    const p = document.querySelector("#applications-results");
     if (p) {
       const tmp = document.createElement("div");
       tmp.innerHTML = applicationsTable();
       p.replaceWith(...tmp.childNodes);
     }
+    const count = document.querySelector("#app-results-count");
+    if (count) count.textContent = `${filteredApps().length} of ${state.applications.filter((a) => appFilter === "Archived" ? a.archived : !a.archived).length} applications`;
     return;
   }
   if (el.id === "essay-search") {

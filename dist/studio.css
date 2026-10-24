@@ -5445,3 +5445,95 @@ dialog.modal::backdrop {
   .portal-setup-panel { padding: 18px; }
   .portal-setup-panel .panel-heading { flex-wrap: wrap; }
 }
+
+/* Application views keep checklist progress visible at every screen size. */
+.application-status-tabs {
+  width: fit-content;
+  margin-bottom: 10px;
+  scroll-padding: 6px;
+}
+.application-status-tabs button {
+  min-height: 42px;
+  padding: 9px 15px;
+  font-weight: 650;
+}
+.application-status-tabs button > span {
+  min-width: 22px;
+  background: var(--glass-control);
+  font-variant-numeric: tabular-nums;
+}
+.application-view-hint {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.college-cell > span:last-child {
+  flex: 1;
+}
+.application-checklist {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 260px;
+  margin-top: 3px;
+}
+.application-progress-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.application-progress-label b {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 750;
+}
+.application-progress-bar {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--soft);
+  color: var(--blue);
+}
+.application-progress-bar::-webkit-progress-bar {
+  background: var(--soft);
+  border-radius: 10px;
+}
+.application-progress-bar::-webkit-progress-value {
+  background: var(--blue);
+  border-radius: 10px;
+}
+.application-progress-bar::-moz-progress-bar {
+  background: var(--blue);
+  border-radius: 10px;
+}
+.is-complete .application-progress-label b {
+  color: var(--green);
+}
+.is-complete .application-progress-bar::-webkit-progress-value {
+  background: var(--green);
+}
+.is-complete .application-progress-bar::-moz-progress-bar {
+  background: var(--green);
+}
+@media (max-width: 640px) {
+  .application-status-tabs {
+    width: 100%;
+  }
+  .application-status-tabs button {
+    padding-inline: 12px;
+    flex-shrink: 0;
+  }
+  .application-view-hint {
+    margin-bottom: 16px;
+  }
+}
