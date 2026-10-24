@@ -1,4 +1,4 @@
-const CACHE = "ascend-static-v10";
+const CACHE = "ascend-static-v11";
 const FILES = [
   "./",
   "./index.html",
