@@ -72,11 +72,12 @@ struct WorkspaceSearchView: View {
     private var hits: [(String,Entry)] { let q=query.trimmingCharacters(in:.whitespacesAndNewlines);guard !q.isEmpty else{return []};return (["applications"]+RecordSpec.collections.map(\.0)).flatMap { key in store.workspace.records(key).filter { ($0.title+" "+$0.text("notes")+" "+$0.text("body")).localizedCaseInsensitiveContains(q) }.map{(key,$0)} } }
     var body: some View {
         Page {
+            Panel { HStack { Image(systemName:"magnifyingglass"); TextField("Search your records",text:$query).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("workspaceSearch") } }
             Text("Search applications, tasks, essays, notes, schoolwork, and the studio tools.").font(.appCaption)
             ForEach(Array(hits.prefix(100).enumerated()),id:\.offset) { _,hit in
                 NavigationLink { if hit.0=="applications" {ApplicationDetail(id:hit.1.id)} else if hit.0=="documents" {DocumentsView()} else {RecordDetail(collection:hit.0,id:hit.1.id)} } label:{Panel{Text(hit.1.title).font(.appHeadline);Text(RecordSpec.title(hit.0)).font(.appCaption)}}.buttonStyle(.plain)
             }
             if !query.isEmpty&&hits.isEmpty{Text("No matching records.").font(.appBody)}
-        }.navigationTitle("Search workspace").navigationBarTitleDisplayMode(.inline).searchable(text:$query,prompt:"Search your records")
+        }.navigationTitle("Search workspace").navigationBarTitleDisplayMode(.inline).scrollDismissesKeyboard(.interactively)
     }
 }

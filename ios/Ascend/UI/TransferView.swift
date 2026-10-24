@@ -21,7 +21,8 @@ struct TransferView: View {
             Form {
                 Section {
                     Label("Your workspace stays with you", systemImage: "lock.shield").font(.appHeadline)
-                    Text("Ascend saves on this iPhone. Transfer a JSON backup through Files to move your complete workspace between the app and website. There is no automatic account or cloud sync.").font(.appBody).foregroundStyle(colors.muted)
+                    Text("Ascend saves on this iPhone. Transfer a full JSON backup manually, or connect optional encrypted private GitHub sync to exchange your workspace with the website while active.").font(.appBody).foregroundStyle(colors.muted)
+                    NavigationLink("Set up device sync") { DeviceSyncView() }
                 }
                 Section("What would you like to transfer?") { Picker("Format", selection: $calendarMode) { Text("Full workspace").tag(false); Text("Calendar (.ics)").tag(true) }.pickerStyle(.segmented) }
                 if calendarMode {

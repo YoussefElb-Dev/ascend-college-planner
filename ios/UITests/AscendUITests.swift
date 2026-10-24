@@ -85,7 +85,7 @@ final class AscendUITests: XCTestCase {
         screenshot("14-Device-sync")
         app.navigationBars.buttons.element(boundBy:0).tap()
         app.buttons["Search workspace"].firstMatch.tap()
-        let search=app.searchFields.firstMatch;XCTAssertTrue(search.waitForExistence(timeout:5));search.tap();search.typeText("Cornell")
+        let search=app.textFields["workspaceSearch"];XCTAssertTrue(search.waitForExistence(timeout:5));search.tap();search.typeText("Cornell")
         XCTAssertTrue(app.staticTexts["Cornell University"].firstMatch.waitForExistence(timeout:5))
         screenshot("15-Search")
     }
