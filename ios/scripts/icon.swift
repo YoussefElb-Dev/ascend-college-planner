@@ -1,17 +1,22 @@
-import AppKit
+import Foundation
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
 let root = CommandLine.arguments[1]
 let folder = URL(fileURLWithPath:root).appendingPathComponent("Ascend/Assets.xcassets")
 let iconFolder = folder.appendingPathComponent("AppIcon.appiconset")
 try FileManager.default.createDirectory(at:iconFolder,withIntermediateDirectories:true)
 let assets=URL(fileURLWithPath:root).deletingLastPathComponent().appendingPathComponent("dist/assets")
-let source=NSImage(contentsOf:assets.appendingPathComponent("ascend-app-icon.png"))!
-let rect=NSRect(x:0,y:0,width:1024,height:1024)
-let rep=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:1024,pixelsHigh:1024,bitsPerSample:8,samplesPerPixel:3,hasAlpha:false,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:0,bitsPerPixel:0)!
-NSGraphicsContext.saveGraphicsState()
-NSGraphicsContext.current=NSGraphicsContext(bitmapImageRep:rep)
-NSColor.white.setFill();rect.fill();source.draw(in:rect)
-NSGraphicsContext.restoreGraphicsState()
-try rep.representation(using:.png,properties:[:])!.write(to:iconFolder.appendingPathComponent("AppIcon.png"))
+let source=CGImageSourceCreateWithURL(assets.appendingPathComponent("ascend-app-icon.png") as CFURL,nil)!
+let image=CGImageSourceCreateImageAtIndex(source,0,nil)!
+let context=CGContext(data:nil,width:1024,height:1024,bitsPerComponent:8,bytesPerRow:0,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue)!
+let rect=CGRect(x:0,y:0,width:1024,height:1024)
+context.setFillColor(CGColor(gray:1,alpha:1));context.fill(rect)
+context.interpolationQuality = .high
+context.draw(image,in:rect)
+let output=CGImageDestinationCreateWithURL(iconFolder.appendingPathComponent("AppIcon.png") as CFURL,UTType.png.identifier as CFString,1,nil)!
+CGImageDestinationAddImage(output,context.makeImage()!,nil)
+guard CGImageDestinationFinalize(output) else {fatalError("Could not prepare app icon.")}
 let contents=#"{"images":[{"filename":"AppIcon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}"#
 try Data(contents.utf8).write(to:iconFolder.appendingPathComponent("Contents.json"))
 try Data(#"{"info":{"author":"xcode","version":1}}"#.utf8).write(to:folder.appendingPathComponent("Contents.json"))
