@@ -29,9 +29,14 @@ struct ProfileView: View {
             Section("About you") { TextField("Name", text: binding("name")); TextField("Graduation year", text: binding("graduation")).keyboardType(.numberPad); TextField("Intended major", text: binding("major")); TextField("High school", text: binding("highSchool")); TextField("State", text: binding("state")); TextField("Application stage", text: binding("stage")) }
             Section("Appearance") { Picker("Theme", selection: binding("theme")) { Text("Soft pastel").tag("light"); Text("Dark").tag("dark"); Text("Black & white").tag("monochrome"); Text("Follow iPhone").tag("system") }; Text("Native Liquid Glass is used on iOS 26. Earlier iOS versions use native material surfaces. Black & white also removes color from campus photos.").font(.caption).foregroundStyle(.secondary) }
             Section { Toggle("QuestBridge planning", isOn: Binding(get: { profile.flag("questbridge") }, set: { profile.set("questbridge", $0); saved = false })); Button(saved ? "Saved" : "Save profile") { if store.change({ $0.profile = profile }) { saved = true } }.fontWeight(.semibold) }
-            Section { NavigationLink("Backup & transfer") { TransferView() }; LabeledContent("Version", value: "1.0 (1)"); Text("Ascend is a personal planning tool. The app does not sign into portals or submit applications.").font(.caption).foregroundStyle(.secondary) }
+            Section { NavigationLink("Backup & transfer") { TransferView() }; NavigationLink("Open-source licenses") { LicenseView() }; LabeledContent("Version", value: "1.0 (1)"); Text("Ascend is a personal planning tool. The app does not sign into portals or submit applications.").font(.caption).foregroundStyle(.secondary) }
         }.navigationTitle("Profile & appearance").navigationBarTitleDisplayMode(.inline).onAppear { if !loaded { profile = store.workspace.profile; loaded = true } }
     }
+}
+
+private struct LicenseView: View {
+    private var license: String { guard let url = Bundle.main.url(forResource: "ical-LICENSE", withExtension: "txt") else { return "Mozilla Public License 2.0 · https://mozilla.org/MPL/2.0/" }; return (try? String(contentsOf: url, encoding: .utf8)) ?? "" }
+    var body: some View { ScrollView { VStack(alignment: .leading, spacing: 16) { Text("ical.js 2.2.1").font(.headline); Text("Calendar parsing and recurrence run locally in JavaScriptCore. Source is bundled in calendar.js, with Ascend’s calendar adapter. Portions copyright Philipp Kewisch.").font(.subheadline); SafeLink(title: "Original ical.js source", address: "https://github.com/kewisch/ical.js"); Text(license).font(.caption).textSelection(.enabled) }.padding(20) }.navigationTitle("Open-source licenses").navigationBarTitleDisplayMode(.inline) }
 }
 
 struct QuestBridgeView: View {

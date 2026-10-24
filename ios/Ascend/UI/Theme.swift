@@ -84,8 +84,19 @@ struct DateField: View {
 struct TimeField: View {
     var title: String
     @Binding var value: String
+    var required = false
     var body: some View {
-        TextField(title + " (HH:mm)", text: $value).keyboardType(.numbersAndPunctuation)
+        VStack(alignment: .leading, spacing: 8) {
+            if !required { Toggle(title, isOn: Binding(get: { !value.isEmpty }, set: { value = $0 ? "09:00" : "" })) }
+            if required || !value.isEmpty {
+                DatePicker(title, selection: Binding(get: {
+                    let parts = value.split(separator: ":").compactMap { Int($0) }
+                    return DateKey.calendar.date(bySettingHour: parts.first ?? 9, minute: parts.count > 1 ? parts[1] : 0, second: 0, of: Date()) ?? Date()
+                }, set: { date in
+                    let parts = DateKey.calendar.dateComponents([.hour, .minute], from: date); value = String(format: "%02d:%02d", parts.hour!, parts.minute!)
+                }), displayedComponents: .hourAndMinute).datePickerStyle(.compact)
+            }
+        }
     }
 }
 

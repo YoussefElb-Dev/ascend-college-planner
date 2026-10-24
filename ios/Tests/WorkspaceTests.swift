@@ -61,7 +61,10 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertTrue(exported.contains("TZID=America/New_York"))
         let items = try engine.expand(w.records("events"), from: "2027-01-01", to: "2027-01-31")
         XCTAssertEqual(items.events.count, 4)
-        XCTAssertEqual(items.events.first?.text("time"), "17:00")
+        var sourceCalendar = Calendar(identifier: .gregorian); sourceCalendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let instant = sourceCalendar.date(from: DateComponents(year: 2027, month: 1, day: 4, hour: 17))!
+        let local = DateKey.calendar.dateComponents([.hour, .minute], from: instant)
+        XCTAssertEqual(items.events.first?.text("time"), String(format: "%02d:%02d", local.hour!, local.minute!))
         XCTAssertTrue(items.warnings.isEmpty)
     }
 }

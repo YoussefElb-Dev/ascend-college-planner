@@ -74,7 +74,11 @@ extension Workspace {
         if let engine {
             do {
                 let result = try engine.expand(records("events"), from: from, to: to)
-                all += result.events.map { AgendaItem(record: $0, collection: "events") }; warnings = result.warnings
+                all += result.events.map { original in
+                    // The shared engine expands personal occurrences in the device's local time.
+                    var local = original; local.set("sourceZone", original.text("zone")); local.set("zone", TimeZone.current.identifier)
+                    return AgendaItem(record: local, collection: "events")
+                }; warnings = result.warnings
             } catch { warnings.append(error.localizedDescription) }
         } else if !records("events").isEmpty { warnings.append("Calendar engine could not load. Saved events remain in your backup.") }
         return (all.sorted { ($0.date + $0.time + $0.title) < ($1.date + $1.time + $1.title) }, warnings)

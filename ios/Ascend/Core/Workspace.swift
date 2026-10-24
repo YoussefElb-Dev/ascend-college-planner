@@ -172,7 +172,7 @@ public struct Workspace: Equatable, Sendable {
         let completing = !reqs[i].flag("done")
         let dependency = reqs[i].text("dependsOn")
         if completing && !dependency.isEmpty && !reqs.contains(where: { $0.id == dependency && ($0.flag("done") || $0.flag("exempt")) }) { throw WorkspaceError.invalid("Complete the prerequisite first.") }
-        reqs[i].set("done", completing); reqs[i].fields["doneAt"] = completing ? .string(DateKey.today) : .null
+        reqs[i].set("done", completing); reqs[i].fields["doneAt"] = completing ? .string(ISO8601DateFormatter().string(from: Date())) : .null
         if !completing {
             var pending = [requirementID]; var visited = Set<String>()
             while let parent = pending.popLast() {

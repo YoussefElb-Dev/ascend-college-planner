@@ -7,6 +7,7 @@ const resources = path.join(ios, 'Ascend', 'Resources');
 const coreResources = path.join(ios, 'Ascend', 'Core', 'Resources');
 fs.mkdirSync(resources, {recursive:true}); fs.mkdirSync(coreResources, {recursive:true});
 for (const name of ['colleges.json', 'college-media.json']) fs.copyFileSync(path.join(repo,'dist','data',name),path.join(resources,name));
+fs.copyFileSync(path.join(repo,'dist/vendor/ical-LICENSE.txt'),path.join(resources,'ical-LICENSE.txt'));
 const vendor = fs.readFileSync(path.join(repo,'dist/vendor/ical.js'),'utf8').replace(/export\s*\{\s*ICALmodule\s+as\s+default\s*\};?\s*$/, '');
 const calendar = fs.readFileSync(path.join(repo,'dist/calendar-model.js'),'utf8').replace(/^import .*?;\s*/,'').replace(/\bexport /g,'');
 const script = `"use strict";

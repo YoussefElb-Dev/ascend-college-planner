@@ -59,6 +59,7 @@ struct PlannerView: View {
             }
             NavigationLink { TransferView(initialCalendar: true) } label: { Label("Import or export a calendar", systemImage: "arrow.triangle.2.circlepath").font(.subheadline.weight(.medium)) }
             Text("Deadlines and due dates appear alongside your personal events. Tap a date twice to open its day view, or pinch to change the level of detail.").font(.caption).foregroundStyle(.secondary)
+            Text("Personal events use this iPhone’s time zone (\(TimeZone.current.identifier)). Deadlines keep their recorded time zone.").font(.caption).foregroundStyle(.secondary)
         }.navigationTitle("Planner").navigationBarTitleDisplayMode(.inline)
             .toolbar { Menu { Button("Add event", action: addEvent); Button("Add task") { var t = RecordSpec.new("tasks"); t.set("due", selected); edit = EditTarget("tasks", t) } } label: { Image(systemName: "plus") }.accessibilityLabel("Add to planner") }
             .sheet(item: $edit) { EntryEditor($0) }

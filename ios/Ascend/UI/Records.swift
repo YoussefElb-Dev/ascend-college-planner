@@ -93,7 +93,7 @@ struct EntryEditor: View {
         case .paragraph:
             VStack(alignment: .leading, spacing: 8) { Text(f.label).font(.caption).foregroundStyle(.secondary); TextEditor(text: binding(f.key)).frame(minHeight: f.key == "body" ? 220 : 90).accessibilityLabel(f.label) }
         case .date: DateField(title: f.label, value: binding(f.key))
-        case .time: if collection != "events" || !entry.flag("allDay") { TimeField(title: f.label, value: binding(f.key)) }
+        case .time: if collection != "events" || !entry.flag("allDay") { TimeField(title: f.label, value: binding(f.key), required: collection == "events") }
         case .choices(let values):
             Picker(f.label, selection: binding(f.key)) {
                 if !values.contains(entry.text(f.key)) { Text(entry.text(f.key).isEmpty ? "Choose…" : entry.text(f.key)).tag(entry.text(f.key)) }
