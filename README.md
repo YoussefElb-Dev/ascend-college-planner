@@ -1,6 +1,6 @@
 # Ascend
 
-A static college application planner with balanced pastel colors, self-hosted Plus Jakarta Sans, and a generated architectural brand mark. Personal records save locally by default. Optional website ↔ iPhone sync encrypts the full workspace into a separate private GitHub repository. There is no database, application backend, or telemetry.
+A static college application planner with a compact white, navy, and cobalt interface, self-hosted Plus Jakarta Sans, and a generated architectural brand mark. Personal records save locally by default. Optional website ↔ iPhone sync encrypts the full workspace into a separate private GitHub repository. There is no database, application backend, or telemetry.
 
 ## GitHub and Vercel
 
@@ -22,8 +22,8 @@ Open [Ascend locally](http://127.0.0.1:5173). No package installation is needed.
 
 ## Included
 
-- A responsive dashboard, horizontal navigation, Pastel/Dark/Black & white/System appearance, profile setup, global search (`Ctrl/Cmd+K`), and local reminders. The navigation appearance button and Settings share a live chooser; the choice persists in the browser. Black & white covers photos, status colors, and dialogs as well as the interface.
-- A shared Liquid Glass-inspired material for navigation, buttons, cards, filters, forms, and dialogs, with frosted backgrounds, soft edge highlights, and solid fallbacks for unsupported blur or reduced-transparency preferences. The Plus Jakarta Sans font and established page layouts are preserved.
+- A responsive Mission Map dashboard, persistent desktop sidebar, Classic/Dark/Black & white/System appearance, profile setup, global search (`Ctrl/Cmd+K`), and local reminders. The navigation appearance button and Settings share a live chooser; the choice persists in the browser. Black & white covers photos, status colors, and dialogs as well as the interface.
+- A shared compact card system for navigation, forms, dialogs, and planning tools, with subtle blue fills, clear borders, and locally bundled Plus Jakarta Sans. The Mission Map groups existing tasks into five focus areas, displays real status counts, and provides task filters and completion controls. It does not change stored categories or task records.
 - A month-first planner with all six possible calendar weeks, week/day zoom, date navigation, daily notes, and personal events with times, locations, categories, repeat rules, and cancellation/archive controls. College deadlines, tasks, visits, tests, goals, follow-ups, and unpaid expenses appear alongside personal commitments.
 - Browser-only iCalendar (.ics) import/export, with a change preview, stable UID matching, duplicate protection, update sequencing, recurring events, exceptions, cancellations, time zones, and multi-day dates. Limits: 2 MB and 2,000 imported event components per file. Calendar file exchange is manual; no calendar account connection or background two-way sync.
 - A backward planning tool that creates six editable tasks from an application’s manually entered deadline and skips duplicate task titles.
@@ -82,7 +82,7 @@ Settings also supports pasting a JSON backup when file selection is unavailable.
 
 ## Native iPhone app
 
-The `ios/` project is a native SwiftUI companion, with Today, college/application checklists, month/week/day planning, personal events, day notes, essays and version history, local documents, financial aid and the other workspace collections. It supports iOS 17+, native Liquid Glass on iOS 26, and light/dark/monochrome appearances. It uses no web view or remote database.
+The `ios/` project is a native SwiftUI companion, with Mission Map, college/application checklists, month/week/day planning, personal events, day notes, essays and version history, local documents, financial aid and the other workspace collections. It supports iOS 17+, a matching white/navy/cobalt card system, and light/dark/monochrome appearances. It uses no web view or remote database.
 
 Optional encrypted private GitHub sync connects the website and iPhone while open/active. Full JSON backups also transfer the complete workspace manually between devices. `.ics` import/export exchanges calendar events and deadlines. Full imports preview their contents, replace the destination workspace, and retain the previous saved file locally for recovery. Private student records are never bundled in the app or checked into this repository; CI uses synthetic fixtures only.
 

@@ -4,21 +4,21 @@ extension Color {
     init(hex: UInt32) { self.init(red: Double((hex >> 16) & 255) / 255, green: Double((hex >> 8) & 255) / 255, blue: Double(hex & 255) / 255) }
 }
 
-// Keep these values aligned with dist/studio.css, including its Liquid Glass overrides.
+// Keep the native palette aligned with dist/mission.css.
 struct AscendColors {
-    var background = Color(hex: 0xeeebf5)
-    var surface = Color.white.opacity(0.67)
+    var background = Color(hex: 0xf8f9fb)
+    var surface = Color.white
     var solid = Color.white
-    var text = Color(hex: 0x303541)
-    var muted = Color(hex: 0x68707b)
-    var border = Color(hex: 0x5e4f72).opacity(0.13)
+    var text = Color(hex: 0x17283f)
+    var muted = Color(hex: 0x78869b)
+    var border = Color(hex: 0xe7e8eb)
     var edge = Color.white.opacity(0.82)
-    var accent = Color(hex: 0x574d66)
+    var accent = Color(hex: 0x3264f5)
     var onAccent = Color.white
-    var lavender = Color(hex: 0xe5dcf2)
-    var mint = Color(hex: 0xe0eee5)
-    var peach = Color(hex: 0xf5edda)
-    var blue = Color(hex: 0xe3edf8)
+    var lavender = Color(hex: 0xf0f2fa)
+    var mint = Color(hex: 0xedf4ee)
+    var peach = Color(hex: 0xfaf4e9)
+    var blue = Color(hex: 0xedf2ff)
     var hero = [Color(hex: 0xedcfc4), Color(hex: 0xead3de), Color(hex: 0xd9ccea)]
     var dark = false
     var monochrome = false
@@ -35,13 +35,13 @@ struct AscendColors {
             c.hero = [Color(hex: 0xdedede), Color(hex: 0xe7e7e7), Color(hex: 0xdedede)]
         } else if mode == "dark" || (mode == "system" && scheme == .dark) {
             c.dark = true
-            c.background = Color(hex: 0x211c2b); c.surface = Color(hex: 0x2e2838).opacity(0.72)
-            c.solid = Color(hex: 0x302939); c.text = Color(hex: 0xf0e8f5)
-            c.muted = Color(hex: 0xbaabc7); c.border = Color(hex: 0xdcd2ee).opacity(0.17)
-            c.edge = Color.white.opacity(0.17); c.accent = Color(hex: 0xb9c6de)
-            c.onAccent = Color(hex: 0x252334)
-            c.lavender = Color(hex: 0x473757); c.mint = Color(hex: 0x2c463b)
-            c.peach = Color(hex: 0x4d422e); c.blue = Color(hex: 0x2d4057)
+            c.background = Color(hex: 0x111722); c.surface = Color(hex: 0x192130)
+            c.solid = Color(hex: 0x192130); c.text = Color(hex: 0xe5ebf6)
+            c.muted = Color(hex: 0x9aa9bf); c.border = Color(hex: 0x2b3546)
+            c.edge = Color.white.opacity(0.17); c.accent = Color(hex: 0x7c9dff)
+            c.onAccent = Color(hex: 0x101a2d)
+            c.lavender = Color(hex: 0x282f45); c.mint = Color(hex: 0x253a32)
+            c.peach = Color(hex: 0x3b3428); c.blue = Color(hex: 0x263652)
             c.hero = [Color(hex: 0x524457), Color(hex: 0x304b43)]
         }
         return c
@@ -66,14 +66,7 @@ extension Font {
 struct PageBackground: View {
     @Environment(\.ascendColors) private var colors
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            colors.background
-            if !colors.monochrome {
-                RadialGradient(colors: [Color(hex: colors.dark ? 0x675581 : 0xd9cce8).opacity(colors.dark ? 0.32 : 0.69), .clear], center: .topLeading, startRadius: 0, endRadius: 520)
-                RadialGradient(colors: [Color(hex: colors.dark ? 0x3c675a : 0xe9cfc5).opacity(colors.dark ? 0.23 : 0.55), .clear], center: .topTrailing, startRadius: 0, endRadius: 420)
-                RadialGradient(colors: [colors.mint.opacity(colors.dark ? 0.16 : 0.5), .clear], center: .bottom, startRadius: 0, endRadius: 500)
-            }
-        }.ignoresSafeArea()
+        colors.background.ignoresSafeArea()
     }
 }
 
@@ -84,22 +77,20 @@ struct Page<Content: View>: View {
 }
 
 struct GlassSurface: ViewModifier {
-    var radius: CGFloat = 16
+    var radius: CGFloat = 12
     @Environment(\.ascendColors) private var colors
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ViewBuilder func body(content: Content) -> some View {
-        if reduceTransparency { content.background(colors.solid, in: RoundedRectangle(cornerRadius: radius)).overlay { RoundedRectangle(cornerRadius: radius).stroke(colors.border, lineWidth: 0.7) } }
-        else if #available(iOS 26.0, *) { content.glassEffect(.regular.tint(colors.surface), in: .rect(cornerRadius: radius)) }
-        else { content.background(colors.surface, in: RoundedRectangle(cornerRadius: radius)).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius)).overlay { RoundedRectangle(cornerRadius: radius).stroke(colors.edge, lineWidth: 0.7) } }
+        content.background(colors.solid, in: RoundedRectangle(cornerRadius: radius)).overlay { RoundedRectangle(cornerRadius: radius).stroke(colors.border, lineWidth: 1) }
     }
 }
-extension View { func glassPanel(_ radius: CGFloat = 16) -> some View { modifier(GlassSurface(radius: radius)) } }
+extension View { func glassPanel(_ radius: CGFloat = 12) -> some View { modifier(GlassSurface(radius: radius)) } }
 
 struct Panel<Content: View>: View {
     @Environment(\.ascendColors) private var colors
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ViewBuilder var content: Content
-    var body: some View { VStack(alignment: .leading, spacing: 10) { content }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(reduceTransparency ? colors.solid : colors.surface, in: RoundedRectangle(cornerRadius: 16)).overlay { RoundedRectangle(cornerRadius: 16).stroke(colors.border, lineWidth: 0.7) } }
+    var body: some View { VStack(alignment: .leading, spacing: 10) { content }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(reduceTransparency ? colors.solid : colors.surface, in: RoundedRectangle(cornerRadius: 12)).overlay { RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1) } }
 }
 
 struct SectionHeading: View {

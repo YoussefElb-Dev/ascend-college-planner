@@ -31,7 +31,7 @@ struct RootView: View {
     @EnvironmentObject var store: WorkspaceStore
     var body: some View {
         TabView(selection: $store.tab) {
-            NavigationStack { TodayView() }.tabItem { Label("Today", systemImage: "square.grid.2x2") }.tag(0)
+            NavigationStack { MissionView() }.tabItem { Label("Plan", systemImage: "square.grid.2x2") }.tag(0)
             NavigationStack { ApplicationsView() }.tabItem { Label("Colleges", systemImage: "building.columns") }.tag(1)
             NavigationStack { PlannerView() }.tabItem { Label("Planner", systemImage: "calendar") }.tag(2)
             NavigationStack { WorkspaceView() }.tabItem { Label("Workspace", systemImage: "tray.full") }.tag(3)

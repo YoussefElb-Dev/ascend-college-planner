@@ -33,7 +33,7 @@ import {
 } from "./core.js";
 import { icon } from "./icons.js";
 import { createExtras } from "./extras.js";
-import { homePage } from "./home.js";
+import { homePage } from "./mission-home.js";
 import { APPLICATION_TABS, applicationChecklist, matchesApplicationView } from "./application-views.js";
 import { createPlanner } from "./planner.js";
 import {
@@ -46,7 +46,7 @@ import {
 } from "./college-media.js";
 
 const APPEARANCES = [
-  ["light", "sun", "Pastel", "Soft color, clear glass"],
+  ["light", "sun", "Classic", "Clean white, cobalt accents"],
   ["dark", "moon", "Dark", "A softer evening view"],
   ["monochrome", "contrast", "Black & white", "Every detail in monochrome"],
   ["system", "settings", "System", "Follow your device"],
@@ -63,6 +63,8 @@ try {
   storageReadFailed = true;
 }
 let route = location.hash.slice(1) || "home",
+  missionFilter = "All",
+  missionPhaseFilter = "All",
   appFilter = "All",
   appQuery = "",
   appSort = "added",
@@ -103,7 +105,7 @@ let directories = {},
 const formHandlers = new Map();
 const root = document.querySelector("#app");
 const pageNames = {
-  home: "Home",
+  home: "Mission Map",
   applications: "Applications",
   colleges: "Colleges",
   tasks: "Tasks",
@@ -152,6 +154,7 @@ const morePages = [
 ];
 Object.assign(pageNames,{studio:"Studio & tools",focus:"Focus timer",readiness:"Submission review",sync:"Device sync",...Object.fromEntries(TOOL_DEFINITIONS.map(d=>[d.key,d.title]))});
 const pageIcons = {
+  home:"chart", applications:"file", colleges:"school", tasks:"tasks",
   studio:"spark",focus:"clock",readiness:"check",sync:"shield",
   deadlines: "calendar",
   resources: "book",
@@ -384,10 +387,10 @@ function applyTheme() {
     document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   document.querySelector('meta[name="theme-color"]').content =
     document.documentElement.dataset.theme === "dark"
-      ? "#211c2b"
+      ? "#111722"
       : pref === "monochrome"
         ? "#e9e9e9"
-        : "#eeebf5";
+        : "#ffffff";
 }
 
 function appearanceOptions() {
@@ -408,20 +411,16 @@ function render() {
   applyTheme();
   const base = route.split("/")[0];
   document.title = `${pageNames[base] || "College workspace"} · Ascend`;
-  root.innerHTML = `<header class="topbar"><a class="brand" href="#home"><img class="brand-mark" src="./assets/ascend-mark.png" alt=""><span>ascend<span class="brand-period">.</span></span><small class="brand-tag">college planner</small></a><nav class="desktop-nav" aria-label="Main navigation">${["home", "planner", "applications", "colleges", "tasks"].map((p) => `<a href="#${p}" class="nav-link ${base === p ? "active" : ""}" ${base === p ? 'aria-current="page"' : ""}>${pageNames[p]}</a>`).join("")}<div class="dropdown"><button class="nav-link ${morePages.includes(base) ? "active" : ""}" data-action="more" aria-controls="more-menu" aria-expanded="false">Workspace ${icon("down")}</button><div class="dropdown-menu" id="more-menu" hidden>${morePages.map((p) => `<a href="#${p}">${icon(pageIcons[p])}${pageNames[p]}</a>`).join("")}</div></div></nav><div class="nav-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "monochrome" ? "contrast" : document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<button class="avatar" data-action="profile" aria-label="Your profile">${h(state.profile.name ? initials(state.profile.name) : "Y")}</button>${ibtn("menu", "Open navigation", "mobile-menu", `aria-controls="mobile-navigation" aria-expanded="${mobileMenu}"`)}</div></header>${
-    mobileMenu
-      ? `<nav class="mobile-nav" id="mobile-navigation" aria-label="Mobile navigation">${Object.entries(
-          pageNames,
-        )
-          .map(
-            ([p, n]) =>
-              `<a href="#${p}" class="${base === p ? "active" : ""}">${n}</a>`,
-          )
-          .join(
-            "",
-          )}<div class="mobile-tools">${btn("Quick add", "quick-add", "secondary", "plus")}${btn("Reminders", "notifications", "secondary", "bell")}${btn("Appearance", "theme", "secondary", "sun")}</div></nav>`
-      : ""
-  }<main id="main" data-page="${base}" tabindex="-1">${storageReadFailed ? `<div class="recovery-banner"><strong>Your saved workspace needs attention.</strong><p>It has been preserved. Download the original data before importing a backup or resetting.</p>${btn("Download original data", "export-original", "secondary", "download")}${btn("Open recovery settings", "nav:settings", "ghost")}</div>` : ""}${renderPage()}</main><footer class="site-footer"><a class="footer-brand" href="#home">ascend.</a><span>Your college application workspace.</span><button data-action="nav:settings" class="local-label">${icon("shield")} Your browser. Your data.</button></footer>`;
+  const navItem = (p) => {
+    const selected = base === p || (p === "applications" && base === "application") || (p === "colleges" && base === "college");
+    return `<a href="#${p}" class="sidebar-link ${selected ? "active" : ""}" ${selected ? 'aria-current="page"' : ""}>${icon(pageIcons[p] || "folder")}<span>${pageNames[p]}</span>${p === "tasks" ? `<small>${state.tasks.filter(t => !t.archived && t.status !== "Done").length}</small>` : ""}</a>`;
+  };
+  const groups = [
+    ["Workspace", ["home", "applications", "planner", "tasks", "colleges"]],
+    ["Your application", ["essays", "financial-aid", "scholarships", "recommendations", "activities", "readiness"]],
+    ["Plan & organize", ["studio", "focus", "documents", "notes", "deadlines", "analytics"]],
+  ];
+  root.innerHTML = `<aside class="app-sidebar ${mobileMenu ? "is-open" : ""}" id="mobile-navigation"><a class="brand" href="#home"><img class="brand-mark" src="./assets/ascend-mark.png" alt=""><span>ascend<span class="brand-period">.</span></span></a>${btn("Quick add", "quick-add", "primary sidebar-add", "plus")}<button class="sidebar-search" data-action="search">${icon("search")}<span>Search workspace</span><kbd>⌘ K</kbd></button><nav class="sidebar-navigation" aria-label="Main navigation">${groups.map(([label, pages]) => `<div class="sidebar-group"><span class="sidebar-label">${label}</span>${pages.map(navItem).join("")}</div>`).join("")}<details class="sidebar-extra"><summary>${icon("folder")} More tools ${icon("down")}</summary>${Object.keys(pageNames).filter(p => !groups.some(([, pages]) => pages.includes(p)) && !["settings", "sync"].includes(p)).map(navItem).join("")}</details></nav><div class="sidebar-bottom"><a href="#sync" class="sidebar-sync">${icon("shield")}<span>Private workspace<small>Local storage · optional sync</small></span>${icon("arrow")}</a><div class="sidebar-profile"><button class="avatar" data-action="profile" aria-label="Your profile">${h(state.profile.name ? initials(state.profile.name) : "Y")}</button><button class="sidebar-profile-name" data-action="profile"><strong>${h(state.profile.name || "Your workspace")}</strong><small>Personal planner</small></button><a href="#settings" class="icon-btn" aria-label="Settings">${icon("settings")}</a></div></div></aside>${mobileMenu ? '<button class="sidebar-backdrop" data-action="mobile-menu" aria-label="Close navigation"></button>' : ""}<header class="workspace-topbar"><div class="workspace-topbar-title">${ibtn("menu", "Open navigation", "mobile-menu", `aria-controls="mobile-navigation" aria-expanded="${mobileMenu}"`)}<div><span class="workspace-context">MY WORKSPACE</span><strong>${pageNames[base] || "College workspace"}</strong></div></div><div class="workspace-topbar-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<a class="btn secondary topbar-planner" href="#planner">${icon("calendar")} Planner</a>${btn("Add new", "quick-add", "primary", "plus")}</div></header><div class="app-content"><main id="main" data-page="${base}" tabindex="-1">${storageReadFailed ? `<div class="recovery-banner"><strong>Your saved workspace needs attention.</strong><p>It has been preserved. Download the original data before importing a backup or resetting.</p>${btn("Download original data", "export-original", "secondary", "download")}${btn("Open recovery settings", "nav:settings", "ghost")}</div>` : ""}${renderPage()}</main><footer class="site-footer"><span>Ascend · Your next chapter, in focus.</span><a href="#sync">${icon("shield")} Private workspace</a></footer></div>`;
   if (["colleges", "high-schools", "compare", "college"].includes(base))
     loadDirectory(base === "high-schools" ? "high-schools" : "colleges");
   if (base === "essays") connectEditor();
@@ -482,7 +481,7 @@ function renderPage() {
   }
 }
 function dashboard() {
-  return `<div class="studio-home-bar"><a href="#studio"><strong>Your studio</strong><span>Focus · habits · schoolwork · interview practice →</span></a><a class="text-link" href="#sync">Device sync ↗</a></div>` + homePage({ state, btn, badge, filterTabs, applicationsTable });
+  return homePage({ state, btn, missionFilter, missionPhaseFilter });
 }
 function filterTabs(compact = false) {
   const values = compact
@@ -1838,7 +1837,7 @@ function settingsPage() {
       "Settings",
       "Manage your profile, appearance, and browser-local workspace.",
     ) +
-    `<div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your profile</h2><p>The person behind the possibilities.</p></div>${btn("Edit profile", "profile", "secondary", "edit")}</div><div class="profile-intro"><span class="avatar large">${h(initials(state.profile.name || "You"))}</span><div><h3>${h(state.profile.name || "Your next chapter")}</h3><p>Class of ${h(state.profile.graduation || "—")}</p></div></div><div class="detail-list"><div><span>High school</span><strong>${h(state.profile.highSchool || "Not selected")}</strong></div><div><span>Academic interests</span><strong>${h(state.profile.major || "Still exploring")}</strong></div><div><span>Home state</span><strong>${h(state.profile.state || "Not set")}</strong></div><div><span>Application stage</span><strong>${h(state.profile.stage || "Getting started")}</strong></div></div></section><section class="panel"><h2>Appearance</h2><p class="body-copy">Liquid glass, in your preferred palette.</p>${appearanceOptions()}<div class="setting-row"><div><strong>QuestBridge workspace</strong><p>An optional place for your QuestBridge plans.</p></div><input type="checkbox" id="quest-toggle" aria-label="Enable QuestBridge workspace" ${state.profile.questbridge ? "checked" : ""}></div><div class="info-note">${icon("leaf")}Motion and transparency follow your device’s accessibility settings.</div></section><section class="panel data-panel"><div class="panel-heading"><div><span class="eyebrow">YOUR BROWSER. YOUR DATA.</span><h2>Backup & data</h2></div><span class="metric-icon mint">${icon("shield")}</span></div><p class="body-copy">Applications, essays, documents, and personal information save locally in this browser. If you enable device sync, an encrypted copy also saves in your private GitHub repository. There is no database or analytics. The local password screen is a privacy lock; protect access to your browser profile.</p><div class="storage-meter"><span>${(bytes / 1024).toFixed(0)} KB saved locally</span><span>Browser capacity varies</span></div><p class="body-copy">Clearing site data, switching browsers, or using private browsing can remove or separate your workspace. Download a backup regularly. Backups include your private files; keep them somewhere you trust.</p><div class="button-group">${btn("Download full backup", "export-backup", "primary", "download")}${btn("Import backup", "import-backup", "secondary", "upload")}${btn("Paste backup", "paste-backup", "ghost", "edit")}${btn("Export applications CSV", "export-applications", "ghost", "download")}</div><input id="backup-file" type="file" accept=".json,application/json" hidden></section><section class="panel data-panel"><h2>Privacy & device sync</h2><p class="body-copy">Unlock with your chosen password. The local lock hides the workspace after five minutes of inactivity. It is not server authentication. Optional device sync sends only encrypted records to your private GitHub repository.</p>${btn("Lock now", "lock-workspace", "secondary", "shield")}${btn("Open device sync", "nav:sync", "secondary")}<hr><h2>Reset workspace</h2><p class="body-copy">Remove all personal workspace data from this browser. The bundled school directory stays available.</p>${btn("Reset this workspace", "reset-workspace", "danger", "trash")}</section></div>`
+    `<div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your profile</h2><p>The person behind the possibilities.</p></div>${btn("Edit profile", "profile", "secondary", "edit")}</div><div class="profile-intro"><span class="avatar large">${h(initials(state.profile.name || "You"))}</span><div><h3>${h(state.profile.name || "Your next chapter")}</h3><p>Class of ${h(state.profile.graduation || "—")}</p></div></div><div class="detail-list"><div><span>High school</span><strong>${h(state.profile.highSchool || "Not selected")}</strong></div><div><span>Academic interests</span><strong>${h(state.profile.major || "Still exploring")}</strong></div><div><span>Home state</span><strong>${h(state.profile.state || "Not set")}</strong></div><div><span>Application stage</span><strong>${h(state.profile.stage || "Getting started")}</strong></div></div></section><section class="panel"><h2>Appearance</h2><p class="body-copy">Clean lines, in your preferred palette.</p>${appearanceOptions()}<div class="setting-row"><div><strong>QuestBridge workspace</strong><p>An optional place for your QuestBridge plans.</p></div><input type="checkbox" id="quest-toggle" aria-label="Enable QuestBridge workspace" ${state.profile.questbridge ? "checked" : ""}></div><div class="info-note">${icon("leaf")}Motion and transparency follow your device’s accessibility settings.</div></section><section class="panel data-panel"><div class="panel-heading"><div><span class="eyebrow">YOUR BROWSER. YOUR DATA.</span><h2>Backup & data</h2></div><span class="metric-icon mint">${icon("shield")}</span></div><p class="body-copy">Applications, essays, documents, and personal information save locally in this browser. If you enable device sync, an encrypted copy also saves in your private GitHub repository. There is no database or analytics. The local password screen is a privacy lock; protect access to your browser profile.</p><div class="storage-meter"><span>${(bytes / 1024).toFixed(0)} KB saved locally</span><span>Browser capacity varies</span></div><p class="body-copy">Clearing site data, switching browsers, or using private browsing can remove or separate your workspace. Download a backup regularly. Backups include your private files; keep them somewhere you trust.</p><div class="button-group">${btn("Download full backup", "export-backup", "primary", "download")}${btn("Import backup", "import-backup", "secondary", "upload")}${btn("Paste backup", "paste-backup", "ghost", "edit")}${btn("Export applications CSV", "export-applications", "ghost", "download")}</div><input id="backup-file" type="file" accept=".json,application/json" hidden></section><section class="panel data-panel"><h2>Privacy & device sync</h2><p class="body-copy">Unlock with your chosen password. The local lock hides the workspace after five minutes of inactivity. It is not server authentication. Optional device sync sends only encrypted records to your private GitHub repository.</p>${btn("Lock now", "lock-workspace", "secondary", "shield")}${btn("Open device sync", "nav:sync", "secondary")}<hr><h2>Reset workspace</h2><p class="body-copy">Remove all personal workspace data from this browser. The bundled school directory stays available.</p>${btn("Reset this workspace", "reset-workspace", "danger", "trash")}</section></div>`
   );
 }
 function profileForm(onboard = false) {
@@ -2078,6 +2077,18 @@ async function action(value, el) {
     case "mobile-menu":
       mobileMenu = !mobileMenu;
       render();
+      break;
+    case "mission-filter":
+      missionFilter = arg;
+      render();
+      break;
+    case "mission-phase":
+      missionPhaseFilter = missionPhaseFilter === arg ? "All" : arg;
+      render();
+      break;
+    case "mission-board":
+      taskView = "Board";
+      navigate("tasks");
       break;
     case "search":
       globalSearch();

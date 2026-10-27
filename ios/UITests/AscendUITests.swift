@@ -7,7 +7,7 @@ final class AscendUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ascend"].firstMatch.waitForExistence(timeout: 15))
         screenshot("01-Today")
         app.tabBars.buttons["Colleges"].tap()
-        XCTAssertTrue(app.staticTexts["Your next chapter"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Your schools, status, and checklist progress."].waitForExistence(timeout: 5))
         screenshot("02-Colleges")
         app.tabBars.buttons["Planner"].tap()
         XCTAssertTrue(app.segmentedControls["calendarZoom"].waitForExistence(timeout: 5))

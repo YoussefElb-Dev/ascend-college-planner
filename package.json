@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test scripts/*.test.mjs",
-    "check": "node --check dist/app.js && node --check dist/core.js && node --check dist/extras.js && node --check dist/home.js && node --check dist/planning.js && node --check dist/planner.js && node --check dist/calendar-model.js && node --check dist/college-media.js && node --check dist/exports.js && node --check dist/workspace-tools.js && node --check dist/workspace-tools-model.js && node --check dist/sync-core.js && node --check dist/device-sync.js && node --check dist/privacy-lock.js && node --test scripts/*.test.mjs",
+    "check": "node --check dist/mission-home.js && node --check dist/mission-model.js && node --check dist/app.js && node --check dist/core.js && node --check dist/extras.js && node --check dist/home.js && node --check dist/planning.js && node --check dist/planner.js && node --check dist/calendar-model.js && node --check dist/college-media.js && node --check dist/exports.js && node --check dist/workspace-tools.js && node --check dist/workspace-tools-model.js && node --check dist/sync-core.js && node --check dist/device-sync.js && node --check dist/privacy-lock.js && node --test scripts/*.test.mjs",
     "directory:validate": "node scripts/import-directory.mjs --validate"
   }
 }

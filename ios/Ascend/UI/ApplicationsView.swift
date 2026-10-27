@@ -14,12 +14,12 @@ struct ApplicationsView: View {
             if mode == "Explore" { DirectoryView(search: search) }
             else {
                 HStack {
-                    SectionHeading(title: "Your next chapter", subtitle: "Every application, one clear view.")
+                    SectionHeading(title: "Applications", subtitle: "Your schools, status, and checklist progress.")
                     Spacer()
                     Menu { Picker("Status", selection: $status) { Text("All").tag("All"); ForEach(AppOptions.statuses, id: \.self) { Text($0).tag($0) } }; Toggle("Show archived", isOn: $archived) } label: { Image(systemName: "line.3.horizontal.decrease").padding(12).glassPanel(30) }.accessibilityLabel("Filter colleges")
                 }
-                if status != "All" { StatusPill(text: status) }
-                let items = store.workspace.records("applications", archived: archived).filter { (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)) && (status == "All" || $0.text("status") == status) }
+                ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 6) { ForEach(["All", "In Progress", "Submitted", "Complete"], id: \.self) { tab in Button { status = tab } label: { Text("\(tab) \(store.workspace.records("applications", archived: archived).filter { matches($0, tab) }.count)").font(.appMicro.weight(.medium)).padding(.horizontal, 12).padding(.vertical, 9).background(status == tab ? colors.text : colors.solid, in: Capsule()).foregroundStyle(status == tab ? colors.solid : colors.muted).overlay { Capsule().stroke(colors.border, lineWidth: 1) } }.buttonStyle(.plain) } } }
+                let items = store.workspace.records("applications", archived: archived).filter { (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)) && matches($0, status) }
                 if items.isEmpty { EmptyCard(icon: "building.columns", title: "A fresh start", message: "Import your website backup or explore the college directory to add your schools.") }
                 ForEach(items) { a in NavigationLink { ApplicationDetail(id: a.id) } label: { ApplicationCard(app: a) }.buttonStyle(.plain) }
                 NavigationLink { ComparisonView() } label: { Label("Compare saved colleges", systemImage: "rectangle.split.2x1").font(.appBody.weight(.semibold)) }
@@ -27,6 +27,12 @@ struct ApplicationsView: View {
         }.navigationTitle("Colleges").navigationBarTitleDisplayMode(.inline).searchable(text: $search, prompt: "Search colleges")
             .toolbar { Button { edit = EditTarget("applications") } label: { Image(systemName: "plus") }.accessibilityLabel("Add application") }
             .sheet(item: $edit) { EntryEditor($0) }
+    }
+    private func matches(_ app: Entry, _ tab: String) -> Bool {
+        if tab == "All" { return true }
+        if tab == "Submitted" { return ["Submitted", "Awaiting Decision"].contains(app.text("status")) }
+        if tab == "Complete" { let required = app.entries("requirements").filter { $0.fields["required"] != .bool(false) && !$0.flag("exempt") }; return !required.isEmpty && required.allSatisfy { $0.flag("done") } }
+        return app.text("status") == tab
     }
 }
 
