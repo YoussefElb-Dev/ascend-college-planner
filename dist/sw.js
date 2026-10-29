@@ -1,4 +1,4 @@
-const CACHE = "ascend-static-v18";
+const CACHE = "ascend-static-v19";
 const FILES = [
   "./account.js", "./account-sync-model.js",
   "./fluid.css", "./aid-model.js",
@@ -28,7 +28,7 @@ const FILES = [
   "./data/high-schools.json",
 ];
 self.addEventListener("install", (e) =>
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES))),
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())),
 );
 self.addEventListener("activate", (e) =>
   e.waitUntil(
