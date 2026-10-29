@@ -34,6 +34,7 @@ import {
 import { icon } from "./icons.js";
 import { createExtras } from "./extras.js";
 import { homePage } from "./mission-home.js";
+import {admissionsRequirements,aidRecords,aidIsComplete,isAidRequirement} from "./aid-model.js";
 import { APPLICATION_TABS, applicationChecklist, matchesApplicationView } from "./application-views.js";
 import { createPlanner } from "./planner.js";
 import {
@@ -105,16 +106,19 @@ let directories = {},
 const formHandlers = new Map();
 const root = document.querySelector("#app");
 const pageNames = {
-  home: "Mission Map",
+  home: "Overview",
   applications: "Applications",
   colleges: "Colleges",
+  portals:"College portals",
   tasks: "Tasks",
   deadlines: "Deadlines",
   resources: "Resources",
   "high-schools": "High Schools",
   essays: "Essays",
   scholarships: "Scholarships",
-  "financial-aid": "Financial Aid",
+  "financial-aid": "Aid documents",
+  fafsa: "FAFSA",
+  "css-profile": "CSS Profile",
   documents: "Documents",
   recommendations: "Recommendations",
   compare: "College Compare",
@@ -169,6 +173,8 @@ const pageIcons = {
   essays: "edit",
   scholarships: "award",
   "financial-aid": "wallet",
+  fafsa: "wallet",
+  "css-profile": "file",
   documents: "folder",
   recommendations: "users",
   compare: "compare",
@@ -411,16 +417,17 @@ function render() {
   applyTheme();
   const base = route.split("/")[0];
   document.title = `${pageNames[base] || "College workspace"} · Ascend`;
+  const primary = ["home", "applications", "planner", "tasks", "colleges", "fafsa", "css-profile"];
   const navItem = (p) => {
     const selected = base === p || (p === "applications" && base === "application") || (p === "colleges" && base === "college");
-    return `<a href="#${p}" class="sidebar-link ${selected ? "active" : ""}" ${selected ? 'aria-current="page"' : ""}>${icon(pageIcons[p] || "folder")}<span>${pageNames[p]}</span>${p === "tasks" ? `<small>${state.tasks.filter(t => !t.archived && t.status !== "Done").length}</small>` : ""}</a>`;
+    return `<a href="#${p}" class="top-nav-link ${selected ? "active" : ""}" ${selected ? 'aria-current="page"' : ""}>${icon(pageIcons[p] || "folder")}<span>${pageNames[p]}</span></a>`;
   };
   const groups = [
-    ["Workspace", ["home", "applications", "planner", "tasks", "colleges"]],
-    ["Your application", ["essays", "financial-aid", "scholarships", "recommendations", "activities", "readiness"]],
-    ["Plan & organize", ["studio", "focus", "documents", "notes", "deadlines", "analytics"]],
+    ["Your story", ["portals", "essays", "activities", "recommendations", "documents", "tests", "questbridge"]],
+    ["Money & decisions", ["financial-aid", "scholarships", "compare", "expenses", "readiness", "analytics"]],
+    ["Your everyday", ["studio", "focus", "notes", "deadlines", "contacts", "visits", "goals", "resources", "high-schools", "sync", "settings"]],
   ];
-  root.innerHTML = `<aside class="app-sidebar ${mobileMenu ? "is-open" : ""}" id="mobile-navigation"><a class="brand" href="#home"><img class="brand-mark" src="./assets/ascend-mark.png" alt=""><span>ascend<span class="brand-period">.</span></span></a>${btn("Quick add", "quick-add", "primary sidebar-add", "plus")}<button class="sidebar-search" data-action="search">${icon("search")}<span>Search workspace</span><kbd>⌘ K</kbd></button><nav class="sidebar-navigation" aria-label="Main navigation">${groups.map(([label, pages]) => `<div class="sidebar-group"><span class="sidebar-label">${label}</span>${pages.map(navItem).join("")}</div>`).join("")}<details class="sidebar-extra"><summary>${icon("folder")} More tools ${icon("down")}</summary>${Object.keys(pageNames).filter(p => !groups.some(([, pages]) => pages.includes(p)) && !["settings", "sync"].includes(p)).map(navItem).join("")}</details></nav><div class="sidebar-bottom"><a href="#sync" class="sidebar-sync">${icon("shield")}<span>Private workspace<small>Local storage · optional sync</small></span>${icon("arrow")}</a><div class="sidebar-profile"><button class="avatar" data-action="profile" aria-label="Your profile">${h(state.profile.name ? initials(state.profile.name) : "Y")}</button><button class="sidebar-profile-name" data-action="profile"><strong>${h(state.profile.name || "Your workspace")}</strong><small>Personal planner</small></button><a href="#settings" class="icon-btn" aria-label="Settings">${icon("settings")}</a></div></div></aside>${mobileMenu ? '<button class="sidebar-backdrop" data-action="mobile-menu" aria-label="Close navigation"></button>' : ""}<header class="workspace-topbar"><div class="workspace-topbar-title">${ibtn("menu", "Open navigation", "mobile-menu", `aria-controls="mobile-navigation" aria-expanded="${mobileMenu}"`)}<div><span class="workspace-context">MY WORKSPACE</span><strong>${pageNames[base] || "College workspace"}</strong></div></div><div class="workspace-topbar-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<a class="btn secondary topbar-planner" href="#planner">${icon("calendar")} Planner</a>${btn("Add new", "quick-add", "primary", "plus")}</div></header><div class="app-content"><main id="main" data-page="${base}" tabindex="-1">${storageReadFailed ? `<div class="recovery-banner"><strong>Your saved workspace needs attention.</strong><p>It has been preserved. Download the original data before importing a backup or resetting.</p>${btn("Download original data", "export-original", "secondary", "download")}${btn("Open recovery settings", "nav:settings", "ghost")}</div>` : ""}${renderPage()}</main><footer class="site-footer"><span>Ascend · Your next chapter, in focus.</span><a href="#sync">${icon("shield")} Private workspace</a></footer></div>`;
+  root.innerHTML = `<header class="floating-header"><div class="top-header-row"><a class="top-brand" href="#home" aria-label="Ascend home"><img src="./assets/ascend-mark.png" alt=""><span>ascend<span>.</span></span></a><span class="top-context">Your next chapter, in focus.</span><div class="top-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<a class="icon-btn" href="#sync" aria-label="Device sync">${icon("shield")}</a>${btn("Add new", "quick-add", "primary", "plus")}<button class="avatar top-avatar" data-action="profile" aria-label="Your profile">${h(initials(state.profile.name || "Your workspace"))}</button></div></div><div class="top-navigation-row"><nav class="top-navigation" aria-label="Main navigation">${primary.map(navItem).join("")}</nav><details class="nav-more"><summary>${icon("folder")}<span>More</span>${icon("down")}</summary><div class="top-menu">${groups.map(([label,pages]) => `<div><span class="top-menu-label">${label}</span>${pages.map(navItem).join("")}</div>`).join("")}<div class="top-tool-links"><span class="top-menu-label">More studio tools</span>${TOOL_DEFINITIONS.map(d=>navItem(d.key)).join("")}</div></div></details></div></header><div class="app-content"><main id="main" data-page="${base}" tabindex="-1">${storageReadFailed ? `<div class="recovery-banner"><strong>Your saved workspace needs attention.</strong><p>It has been preserved. Download the original data before importing a backup or resetting.</p>${btn("Download original data", "export-original", "secondary", "download")}${btn("Open recovery settings", "nav:settings", "ghost")}</div>` : ""}${renderPage()}</main><footer class="site-footer"><span>Ascend · A little clarity for your next chapter.</span><a href="#sync">${icon("shield")} Private workspace</a></footer></div>`;
   if (["colleges", "high-schools", "compare", "college"].includes(base))
     loadDirectory(base === "high-schools" ? "high-schools" : "colleges");
   if (base === "essays") connectEditor();
@@ -435,6 +442,8 @@ function render() {
 function renderPage() {
   const [base, id] = route.split("/");
   if (base === "sync") return deviceSync.page();
+  if (base === "portals") return portalsPage();
+  if (["fafsa", "css-profile"].includes(base)) return aidPage(base);
   if (base === "planner") return planner.page(id);
   const toolPage = studio.renderPage(base);
   if (toolPage !== null) return toolPage;
@@ -531,9 +540,9 @@ function applicationsTable(home = false) {
         icon("arrow") +
         "</a>",
     ) + "</div>";
-  return `<div ${panelAttributes} class="application-table"><div class="table-labels"><span>COLLEGE & CHECKLIST PROGRESS</span><span>INTENDED MAJOR</span><span>STATUS</span><span>NEXT DEADLINE</span><span></span></div>${list.map((a) => {
+  return `<div ${panelAttributes} class="application-table"><div class="table-labels"><span>COLLEGE & CHECKLIST PROGRESS</span><span>INTENDED MAJOR</span><span>STATUS</span><span>APPLICATION RECORD</span><span></span></div>${list.map((a) => {
     const checklist = applicationChecklist(a);
-    return `<div class="application-row"><a href="#application/${a.id}" class="college-cell">${monogram(a.name)}<span><strong>${h(a.name)}</strong><small>${h(a.round || "Round not set")}</small><span class="application-checklist ${checklist.complete ? "is-complete" : ""}"><span class="application-progress-label"><b>${checklist.percent}%</b><span>${checklist.total ? `${checklist.done}/${checklist.total} required${checklist.complete ? " · Complete" : ""}` : "No required items yet"}</span></span><progress class="application-progress-bar" value="${checklist.percent}" max="100" aria-label="${h(a.name)} required checklist progress">${checklist.percent}%</progress></span></span></a><span class="major-cell"><span>${h(a.major || "Major to explore")}</span></span><span>${badge(a.status)}</span><span class="deadline-cell">${a.deadline ? `<small class="${daysUntil(a.deadline) < 0 ? "danger-text" : ""}">${dueLabel(a.deadline)}</small><strong>${dateLabel(a.deadline, true)}</strong>` : "<small>Verify the official date</small><strong>No deadline set</strong>"}</span><span class="row-actions"><a class="icon-btn" aria-label="Open ${h(a.name)} workspace" href="#application/${a.id}">${icon("arrow")}</a>${ibtn("more", `Actions for ${a.name}`, `app-menu:${a.id}`)}</span></div>`;
+    return `<div class="application-row"><a href="#application/${a.id}" class="college-cell">${monogram(a.name)}<span><strong>${h(a.name)}</strong><small>${h(a.round || "Round not set")}</small><span class="application-checklist ${checklist.complete ? "is-complete" : ""}"><span class="application-progress-label"><b>${checklist.percent}%</b><span>${checklist.total ? `${checklist.done}/${checklist.total} required${checklist.complete ? " · Complete" : ""}` : "No required items yet"}</span></span><progress class="application-progress-bar" value="${checklist.percent}" max="100" aria-label="${h(a.name)} required checklist progress">${checklist.percent}%</progress></span></span></a><span class="major-cell"><span>${h(a.major || "Major to explore")}</span></span><span>${badge(a.status)}</span><span class="deadline-cell">${checklist.complete ? `<small>Admissions complete</small><strong>${a.completionReportedAt ? dateLabel(a.completionReportedAt,true) : "Checklist complete"}</strong>` : a.deadline ? `<small class="${daysUntil(a.deadline) < 0 ? "danger-text" : ""}">${dueLabel(a.deadline)}</small><strong>${dateLabel(a.deadline, true)}</strong>` : "<small>Verify the official date</small><strong>No deadline set</strong>"}</span><span class="row-actions"><a class="icon-btn" aria-label="Open ${h(a.name)} workspace" href="#application/${a.id}">${icon("arrow")}</a>${ibtn("more", `Actions for ${a.name}`, `app-menu:${a.id}`)}</span></div>`;
   }).join("")}</div>${home && filteredApps().length > 5 ? '<a class="table-footer-link" href="#applications">View all applications ' + icon("arrow") + "</a>" : ""}`;
 }
 function applicationsPage() {
@@ -543,7 +552,7 @@ function applicationsPage() {
       "One workspace for every school on your list.",
       btn("Add application", "add-application", "primary", "plus"),
     ) +
-    `<section class="panel applications-list-panel">${filterTabs()}<p class="application-view-hint">Complete = every required checklist item done. Submitted applications can still have items to finish.</p><div class="toolbar"><label class="search-field">${icon("search")}<input id="app-search" placeholder="Find an application…" value="${h(appQuery)}" aria-label="Find an application"></label><select id="app-status" aria-label="Filter applications">${["All", ...STATUSES, "Complete", "Archived"].map((s) => `<option ${s === appFilter ? "selected" : ""}>${s}</option>`).join("")}</select><select id="app-sort" aria-label="Sort applications">${[
+    `<section class="panel applications-list-panel">${filterTabs()}<p class="application-view-hint">Admissions progress only. FAFSA, CSS Profile, and aid documents have their own workspaces.</p><div class="toolbar"><label class="search-field">${icon("search")}<input id="app-search" placeholder="Find an application…" value="${h(appQuery)}" aria-label="Find an application"></label><select id="app-status" aria-label="Filter applications">${["All", ...STATUSES, "Complete", "Archived"].map((s) => `<option ${s === appFilter ? "selected" : ""}>${s}</option>`).join("")}</select><select id="app-sort" aria-label="Sort applications">${[
       ["added", "Added order"],
       ["name", "College name"],
       ["deadline", "Deadline"],
@@ -647,14 +656,14 @@ function applicationWorkspace(id) {
       btn("View applications", "nav:applications"),
     );
   const p = progress(a);
-  return `<a class="back-link" href="#applications">${icon("arrow")}All applications</a><div class="workspace-heading">${monogram(a.name, "large")}<div><div class="eyebrow">${h(a.pathway || "YOUR COLLEGE WORKSPACE")}</div><h1>${h(a.name)}</h1><p>${h(a.major || "A major to explore")} <span>·</span> ${h(a.round)}</p></div>${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}</div><div class="workspace-summary"><span>${badge(a.status)}<small>Manually confirmed by you</small></span><span>${icon("calendar")}<strong>${dateLabel(a.deadline, true)}</strong><small>${a.deadline ? (a.deadlineTime ? h(`${a.deadlineTime} ${a.timezone || ""}`) : "Cutoff time not verified") : "Set your deadline in Edit application"}</small></span><span class="summary-progress"><strong>${p}% complete</strong><span class="progress-track"><i style="width:${p}%"></i></span><small>Based on your required checklist items</small></span></div><div class="workspace-tabs" role="tablist">${SECTIONS.map((t) => `<button role="tab" aria-selected="${workspaceTab === t}" class="${workspaceTab === t ? "selected" : ""}" data-action="workspace-tab:${t}">${t}</button>`).join("")}</div><section class="panel workspace-content">${workspaceBody(a)}</section>`;
+  return `<a class="back-link" href="#applications">${icon("arrow")}All applications</a><div class="workspace-heading">${monogram(a.name, "large")}<div><div class="eyebrow">${h(a.pathway || "YOUR COLLEGE WORKSPACE")}</div><h1>${h(a.name)}</h1><p>${h(a.major || "A major to explore")} <span>·</span> ${h(a.round)}</p></div>${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}</div><div class="workspace-summary"><span>${badge(a.status)}<small>Manually confirmed by you</small></span><span>${icon("calendar")}<strong>${dateLabel(a.deadline, true)}</strong><small>${a.deadline ? (a.deadlineTime ? h(`${a.deadlineTime} ${a.timezone || ""}`) : "Cutoff time not verified") : "Set your deadline in Edit application"}</small></span><span class="summary-progress"><strong>${p}% complete</strong><span class="progress-track"><i style="width:${p}%"></i></span><small>Admissions only · aid tracked separately</small></span></div>${a.completionReportedAt ? `<div class="info-note">${icon("check")}Admissions completed · reported by you ${dateLabel(a.completionReportedAt,true)}. School document receipts remain separately noted; aid lives in the top menu.</div>` : ""}<div class="workspace-tabs" role="tablist">${SECTIONS.map((t) => `<button role="tab" aria-selected="${workspaceTab === t}" class="${workspaceTab === t ? "selected" : ""}" data-action="workspace-tab:${t}">${t}</button>`).join("")}</div><section class="panel workspace-content">${workspaceBody(a)}</section>`;
 }
 function workspaceBody(a) {
   switch (workspaceTab) {
     case "Overview":
-      return `<div class="two-columns"><div><div class="panel-heading"><h2>A plan for ${h(a.name.split(" ")[0])}.</h2></div><p class="body-copy">Keep your requirements, writing, and next steps together. You decide what’s needed, and Ascend keeps track of your progress.</p><div class="detail-list"><div><span>Application round</span><strong>${h(a.round)}</strong></div><div><span>Application pathway</span><strong>${h(a.pathway)}</strong></div><div><span>Deadline</span><strong>${dateLabel(a.deadline, true)}</strong></div><div><span>Requirements completed</span><strong>${a.requirements.filter((r) => r.done && !r.exempt).length} of ${a.requirements.filter((r) => !r.exempt).length}</strong></div></div>${a.url ? link("Open official website", a.url, "btn secondary") : ""}</div><div class="soft-box"><span class="eyebrow">YOUR NEXT STEP</span><h3>${a.requirements.find((r) => !r.done && !r.exempt)?.title || "Make your own checklist."}</h3><p>Requirements are personal to this application. Check the college’s official site before adding them.</p>${btn("Open requirements", "workspace-tab:Requirements", "secondary", "tasks")}<div class="info-note">${icon("shield")}Your changes here don’t submit anything to a college.</div></div></div>`;
+      return `<div class="two-columns"><div><div class="panel-heading"><h2>A plan for ${h(a.name.split(" ")[0])}.</h2></div><p class="body-copy">Keep your requirements, writing, and next steps together. You decide what’s needed, and Ascend keeps track of your progress.</p><div class="detail-list"><div><span>Application round</span><strong>${h(a.round)}</strong></div><div><span>Application pathway</span><strong>${h(a.pathway)}</strong></div><div><span>Deadline</span><strong>${dateLabel(a.deadline, true)}</strong></div><div><span>Requirements completed</span><strong>${admissionsRequirements(a).filter((r) => r.done && !r.exempt).length} of ${admissionsRequirements(a).filter((r) => !r.exempt).length}</strong></div></div>${a.url ? link("Open official website", a.url, "btn secondary") : ""}</div><div class="soft-box"><span class="eyebrow">YOUR NEXT STEP</span><h3>${h(admissionsRequirements(a).find((r) => !r.done && !r.exempt)?.title || (applicationChecklist(a).complete ? "Admissions checklist complete." : "Make your own checklist."))}</h3><p>Requirements are personal to this application. Check the college’s official site before adding them.</p>${btn("Open requirements", "workspace-tab:Requirements", "secondary", "tasks")}<div class="info-note">${icon("shield")}Your changes here don’t submit anything to a college.</div></div></div>`;
     case "Requirements":
-      return `<div class="panel-heading"><div><h2>Application requirements</h2><p>${progress(a)}% of required weight complete. Optional and exempt items are excluded.</p></div><div class="button-group">${!a.requirements.length ? btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus") : ""}${btn("Add requirement", `add-requirement:${a.id}`, "secondary", "plus")}</div></div>${a.requirements.length ? `<div class="checklist">${a.requirements.map((r) => `<div class="checklist-row"><input type="checkbox" aria-label="Complete ${h(r.title)}" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""} ${r.exempt ? "disabled" : ""}><div><strong class="${r.done ? "completed-text" : ""}">${h(r.title)}</strong><small>${r.exempt ? "Not applicable" : r.required === false ? "Optional" : `Required · weight ${r.weight || 1}`}${r.doneAt ? ` · Completed ${dateLabel(r.doneAt)}` : ""}${r.dependsOn ? ` · After ${h(a.requirements.find((x) => x.id === r.dependsOn)?.title || "removed item")}` : ""}</small></div>${ibtn("edit", "Edit requirement", `edit-requirement:${a.id}/${r.id}`)}${ibtn("trash", "Delete requirement", `delete-requirement:${a.id}/${r.id}`)}</div>`).join("")}</div>` : empty("tasks", "A checklist that fits your application.", "Add your own requirements or customize a starter checklist. Nothing is assumed to be required.")}`;
+      return `<div class="panel-heading"><div><h2>Application requirements</h2><p>${progress(a)}% of required weight complete. Financial aid, optional, and exempt items are excluded.</p></div><div class="button-group">${!a.requirements.length ? btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus") : ""}${btn("Add requirement", `add-requirement:${a.id}`, "secondary", "plus")}</div></div>${a.requirements.length ? `<div class="checklist">${admissionsRequirements(a).map((r) => `<div class="checklist-row"><input type="checkbox" aria-label="Complete ${h(r.title)}" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""} ${r.exempt ? "disabled" : ""}><div><strong class="${r.done ? "completed-text" : ""}">${h(r.title)}</strong><small>${r.exempt ? "Not applicable" : r.required === false ? "Optional" : `Required · weight ${r.weight || 1}`}${r.doneAt ? ` · Completed ${dateLabel(r.doneAt)}` : ""}${r.dependsOn ? ` · After ${h(a.requirements.find((x) => x.id === r.dependsOn)?.title || "removed item")}` : ""}</small></div>${ibtn("edit", "Edit requirement", `edit-requirement:${a.id}/${r.id}`)}${ibtn("trash", "Delete requirement", `delete-requirement:${a.id}/${r.id}`)}</div>`).join("")}</div>` : empty("tasks", "A checklist that fits your application.", "Add your own requirements or customize a starter checklist. Nothing is assumed to be required.")}`;
     case "Essays":
       return essayList(a.id);
     case "Recommendations":
@@ -679,7 +688,7 @@ function requirementForm(app, id) {
   };
   formDialog(
     id ? "Edit requirement" : "Add requirement",
-    `${field("Requirement", "title", r.title, "text", 'required maxlength="180"')}${field("Weight", "weight", r.weight, "number", 'min="1" max="100" required')}${select(
+    `${field("Requirement", "title", r.title, "text", 'required maxlength="180"')}${select("Workspace", "domain", [["admissions", "Admissions"], ["aid", "Financial aid"]], r.domain || (isAidRequirement(r) ? "aid" : "admissions"))}${select("Status", "done", [["false", "Not complete"], ["true", "Complete"]], String(Boolean(r.done)))}${field("Weight", "weight", r.weight, "number", 'min="1" max="100" required')}${select(
       "Include in progress",
       "required",
       [
@@ -708,6 +717,9 @@ function requirementForm(app, id) {
       }
       return mutate(() => {
         Object.assign(r, v, {
+          domain:v.domain,
+          done:v.done === "true",
+          doneAt:v.done === "true" ? (r.doneAt || today()) : "",
           weight: Number(v.weight),
           required: v.required === "true",
           exempt: v.exempt === "true",
@@ -1437,6 +1449,7 @@ const config = {
     key: "aid",
     title: "Financial aid",
     subtitle: "Your forms, offers, and financial questions, organized.",
+    category:"Other",
     noun: "aid requirement",
     icon: "wallet",
   },
@@ -1448,6 +1461,21 @@ const config = {
     icon: "note",
   },
 };
+Object.assign(config, {
+  fafsa:{...config["financial-aid"],title:"FAFSA",noun:"FAFSA item",category:"FAFSA"},
+  "css-profile":{...config["financial-aid"],title:"CSS Profile",noun:"CSS item",category:"CSS Profile"},
+});
+function portalsPage() {
+  return header("College portals", "Open the official portals in your usual browser, where your saved passwords live.")+
+  `<section class="panel"><div class="info-note">${icon("shield")}Ascend never stores portal passwords. Autofill depends on your browser, the exact portal domain, and an activated account. Use this list to track which sign-ins you have checked.</div><div class="portal-grid">${state.applications.filter(a=>!a.archived).map(a=>`<article class="portal-card"><div class="portal-card-heading">${monogram(a.name)}<h2>${h(a.name)}</h2></div><span class="badge">${h(a.portalAccess?.status||"Access not checked")}</span><p>${a.portalAccess?.status==="Cookies error"?"The portal reported a cookie problem. Review it in your browser before signing in.":a.portalAccess?.status==="Sign-in confirmed by you"?"You confirmed this portal sign-in works in your browser.":"Open the portal and use your saved sign-in. New accounts may need activation first."}</p><div class="button-group">${a.url?link("Open portal",a.url,"btn secondary"):""}${btn("Sign-in works",`portal-confirm:${a.id}`,"ghost","check")}</div>${a.portalAccess?.checkedAt?`<small>Last checked ${dateLabel(a.portalAccess.checkedAt,true)}</small>`:""}</article>`).join("")}</div></section>`;
+}
+function aidPage(page) {
+  const c=config[page],list=aidRecords(state,c.category),done=list.filter(aidIsComplete).length;
+  const url=page==="fafsa"?"https://studentaid.gov/h/apply-for-aid/fafsa":"https://cssprofile.collegeboard.org/";
+  const legacy=list.filter(r=>r.legacy);
+  return header(c.title, page==="fafsa"?"Your federal aid application, with a space of its own.":"Your CSS Profile and school delivery checklist, together.",link("Open official website",url,"btn primary")+btn("Add item",`add-record:${page}`,"secondary","plus"))+
+    `<section class="aid-intro panel"><div><span class="eyebrow">FINANCIAL AID · SEPARATE FROM ADMISSIONS</span><h2>${done} of ${list.length} items complete</h2><p>Save your filing progress, confirmation notes, and each school's receipt here. Submitted and received are separate steps.</p><div class="aid-tabs"><a href="#fafsa" class="btn ${page==="fafsa"?"primary":"secondary"}">FAFSA</a><a href="#css-profile" class="btn ${page==="css-profile"?"primary":"secondary"}">CSS Profile</a><a href="#financial-aid" class="btn secondary">Other aid documents</a></div></div><div class="aid-progress-orb"><strong>${list.length?Math.round(done/list.length*100):0}<small>%</small></strong><span>checklist complete</span></div></section><section class="panel">${recordsBody(page)}${legacy.length?`<div class="panel-heading"><h2>From older application checklists</h2></div><div class="records-list">${legacy.map(r=>`<article class="record-row"><div class="record-info"><strong>${h(r.title)}</strong><small>${h(state.applications.find(a=>a.id===r.applicationId)?.name||"")}</small></div>${badge(r.status)}${btn("Edit",`edit-requirement:${r.applicationId}/${r.id}`,"secondary","edit")}</article>`).join("")}</div>`:""}</section><div class="info-note">${icon("shield")}Your admission checklists stay complete while you work on financial aid. This tracker does not file aid applications or verify eligibility.</div>`;
+}
 function recordsPage(page) {
   const c = config[page];
   return (
@@ -1462,14 +1490,15 @@ function recordsPage(page) {
 function recordsBody(page, applicationId) {
   const c = config[page];
   const list = state[c.key].filter(
-    (r) => !applicationId || r.applicationId === applicationId,
+    (r) => (!applicationId || r.applicationId === applicationId) && (!c.category || aidRecords({aid:[r],applications:[]},c.category).length),
   );
-  return `<div class="panel-heading"><div><h2>${page === "recommendations" ? "Your support circle" : page === "financial-aid" ? "The financial aid checklist" : page === "scholarships" ? "Your scholarship list" : "Your notebook"}</h2><p>${list.length} ${list.length === 1 ? c.noun : `${c.noun}s`}</p></div>${applicationId ? btn(`Add ${c.noun}`, `add-record:${page}/${applicationId}`, "secondary", "plus") : ""}</div>${list.length ? `<div class="records-list">${list.map((r) => `<article class="record-row">${icon(c.icon)}<div class="record-info"><button class="record-title" data-action="edit-record:${page}/${r.id}">${h(r.title || r.name)}</button><small>${h(r.role || r.category || r.tags || "Personal record")}${r.applicationId ? ` · ${h(state.applications.find((a) => a.id === r.applicationId)?.name || "Removed application")}` : ""}${r.due ? ` · ${dateLabel(r.due)} · ${dueLabel(r.due)}` : ""}</small>${r.body || r.notes ? `<p class="record-preview">${h((r.body || r.notes).slice(0, 160))}</p>` : ""}</div>${r.status ? badge(r.status) : ""}${r.amount ? `<strong>${money(r.amount)}</strong>` : ""}${ibtn("edit", `Edit ${c.noun}`, `edit-record:${page}/${r.id}`)}${ibtn("trash", `Delete ${c.noun}`, `delete-record:${page}/${r.id}`)}</article>`).join("")}</div>` : empty(c.icon, page === "recommendations" ? "You don’t have to do it alone." : page === "notes" ? "A fresh page for your ideas." : "A little organization goes a long way.", page === "recommendations" ? "Add a teacher, counselor, or mentor and track your requests." : "Add your first record when you’re ready.", btn(`Add ${c.noun}`, `add-record:${page}/${applicationId || ""}`, "secondary", "plus"))}`;
+  return `<div class="panel-heading"><div><h2>${page === "recommendations" ? "Your support circle" : c.key === "aid" ? (c.category ? c.title + " checklist" : "The financial aid checklist") : page === "scholarships" ? "Your scholarship list" : "Your notebook"}</h2><p>${list.length} ${list.length === 1 ? c.noun : `${c.noun}s`}</p></div>${applicationId ? btn(`Add ${c.noun}`, `add-record:${page}/${applicationId}`, "secondary", "plus") : ""}</div>${list.length ? `<div class="records-list">${list.map((r) => `<article class="record-row">${icon(c.icon)}<div class="record-info"><button class="record-title" data-action="edit-record:${page}/${r.id}">${h(r.title || r.name)}</button><small>${h(r.role || r.category || r.tags || "Personal record")}${r.applicationId ? ` · ${h(state.applications.find((a) => a.id === r.applicationId)?.name || "Removed application")}` : ""}${r.due ? ` · ${dateLabel(r.due)} · ${dueLabel(r.due)}` : ""}</small>${r.body || r.notes ? `<p class="record-preview">${h((r.body || r.notes).slice(0, 160))}</p>` : ""}</div>${r.status ? badge(r.status) : ""}${r.amount ? `<strong>${money(r.amount)}</strong>` : ""}${ibtn("edit", `Edit ${c.noun}`, `edit-record:${page}/${r.id}`)}${ibtn("trash", `Delete ${c.noun}`, `delete-record:${page}/${r.id}`)}</article>`).join("")}</div>` : empty(c.icon, page === "recommendations" ? "You don’t have to do it alone." : page === "notes" ? "A fresh page for your ideas." : "A little organization goes a long way.", page === "recommendations" ? "Add a teacher, counselor, or mentor and track your requests." : "Add your first record when you’re ready.", btn(`Add ${c.noun}`, `add-record:${page}/${applicationId || ""}`, "secondary", "plus"))}`;
 }
 function recordForm(page, id = "", applicationId = "") {
   const c = config[page],
     r = state[c.key].find((x) => x.id === id) || {
       title: "",
+      category:c.category || "Other",
       applicationId,
       notes: "",
       body: "",
@@ -1544,7 +1573,7 @@ function recordForm(page, id = "", applicationId = "") {
         ],
         r.status,
       );
-  if (page === "financial-aid")
+  if (c.key === "aid")
     fields +=
       select(
         "Category",
@@ -2074,6 +2103,9 @@ async function action(value, el) {
       if (!menu.hidden) menu.querySelector("a").focus();
       break;
     }
+    case "portal-confirm":
+      mutate(()=>{const a=state.applications.find(a=>a.id===arg);if(a)a.portalAccess={status:"Sign-in confirmed by you",checkedAt:today(),autofill:"User confirmed"};},"Portal access updated");
+      break;
     case "mobile-menu":
       mobileMenu = !mobileMenu;
       render();

@@ -1,9 +1,10 @@
 import { progress } from "./core.js";
+import { admissionsRequirements } from "./aid-model.js";
 
 export const APPLICATION_TABS = ["All", "Not Started", "In Progress", "Submitted", "Complete"];
 
 export function applicationChecklist(app) {
-  const required = (app.requirements || []).filter(
+  const required = admissionsRequirements(app).filter(
     (item) => item.required !== false && !item.exempt,
   );
   const done = required.filter((item) => item.done).length;

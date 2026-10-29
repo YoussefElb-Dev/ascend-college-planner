@@ -1,4 +1,5 @@
 import {TOOL_KEYS,validateTools} from "./workspace-tools-model.js";
+import {admissionsRequirements,aidCategory} from "./aid-model.js";
 import {
   expandPersonalEvents,
   calendarFile,
@@ -46,7 +47,6 @@ export const SECTIONS = [
   "Essays",
   "Recommendations",
   "Documents",
-  "Financial Aid",
   "Notes",
   "Decision",
 ];
@@ -115,7 +115,7 @@ export function safeUrl(value) {
   }
 }
 export function progress(app) {
-  const list = (app.requirements || []).filter(
+  const list = admissionsRequirements(app).filter(
     (r) => r.required !== false && !r.exempt,
   );
   const total = list.reduce((n, r) => n + Number(r.weight || 1), 0);
@@ -470,6 +470,7 @@ export function calendarEvents(s, range = {}) {
     if (
       a.deadline &&
       !a.archived &&
+      !(admissionsRequirements(a).filter(r=>r.required!==false&&!r.exempt).length && admissionsRequirements(a).filter(r=>r.required!==false&&!r.exempt).every(r=>r.done)) &&
       !["Withdrawn", "Rejected"].includes(a.status)
     )
       items.push({
@@ -518,7 +519,7 @@ export function calendarEvents(s, range = {}) {
             key === "tasks"
               ? "tasks"
               : key === "aid"
-                ? "financial-aid"
+                ? aidCategory(r)==="FAFSA"?"fafsa":aidCategory(r)==="CSS Profile"?"css-profile":"financial-aid"
                 : key === "goals"
                   ? "planner"
                   : key,

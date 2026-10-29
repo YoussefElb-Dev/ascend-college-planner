@@ -1,4 +1,5 @@
 // Shared public tool definitions. Resource preparation also bundles these in the native app.
+import {admissionsRequirements} from "./aid-model.js";
 const field = (key, label, kind = "text", extra = {}) => ({key, label, kind, ...extra});
 const status = (values) => field("status", "Status", "choices", {values});
 const notes = field("notes", "Notes", "paragraph");
@@ -30,5 +31,5 @@ export function shiftDay(day,amount) {const d=new Date(day+"T12:00:00Z");d.setUT
 export function habitStreak(record,day) {const dates=new Set(record.doneDates||[]);let n=0,c=dates.has(day)?day:shiftDay(day,-1);while(dates.has(c)&&n<100000){n++;c=shiftDay(c,-1);}return n;}
 export function gpa(courses) {let points=0,credits=0;for(const c of courses.filter(x=>!x.archived)){if(c.gradePoints==null||c.gradePoints===""||!(Number(c.credits)>0))continue;points+=Number(c.gradePoints)*Number(c.credits);credits+=Number(c.credits);}return credits?points/credits:null;}
 export function fitScore(r,weights={academics:1,affordability:1,campus:1,opportunity:1}) {let sum=0,total=0;for(const k of ["academics","affordability","campus","opportunity"]){const w=Math.max(0,Number(weights[k])||0);if(r[k]!==""&&r[k]!=null&&Number(r[k])>=1&&Number(r[k])<=5){sum+=Number(r[k])*w;total+=w;}}return total?sum/total:null;}
-export function readiness(state) {return state.applications.filter(a=>!a.archived).map(a=>({id:a.id,name:a.name,deadline:a.deadline||"",missing:(a.requirements||[]).filter(r=>r.required!==false&&!r.exempt&&!r.done),receipts:(state.receipts||[]).filter(r=>!r.archived&&r.applicationId===a.id).length}));}
+export function readiness(state) {return state.applications.filter(a=>!a.archived).map(a=>({id:a.id,name:a.name,deadline:a.deadline||"",missing:admissionsRequirements(a).filter(r=>r.required!==false&&!r.exempt&&!r.done),receipts:(state.receipts||[]).filter(r=>!r.archived&&r.applicationId===a.id).length}));}
 export const INTERVIEW_QUESTIONS=["Tell me about a time you changed your mind.","Why are you interested in this college?","Describe a challenge and the steps you took.","How have you contributed to a community?","What do you enjoy learning outside class?","Tell me about a collaboration that taught you something.","What questions would you like to ask us?"];
