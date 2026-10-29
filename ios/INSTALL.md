@@ -6,7 +6,7 @@ The app uses the website’s pastel color values, locally bundled Plus Jakarta S
 
 ## About this IPA
 
-`Ascend-1.1-unsigned.ipa` is a compiled ARM64 iPhone/iPad app, packaged without a signing certificate or provisioning profile. It is **not directly installable** by opening it on an iPhone. Apple requires valid signing and provisioning before an app can run on a physical device. This build does not include or request anyone's signing credentials.
+The build workflow produces `Ascend-1.3-unsigned.ipa`, an ARM64 iPhone/iPad app packaged without a signing certificate or provisioning profile. It is **not directly installable** by opening it on an iPhone. Apple requires valid signing and provisioning before an app can run on a physical device. The project does not include or request anyone's signing credentials.
 
 To install, sign the IPA with an iOS signing/sideloading setup you control. The supported Xcode path requires a Mac and an Apple account/team: open the project, choose your team under Signing & Capabilities, select your device, and run. Distribution/TestFlight requires the appropriate Apple Developer setup. Do not send account passwords or certificates in chat. Signing and installation have not been tested without that setup.
 
@@ -19,6 +19,10 @@ You do not need a Mac to sign an already compiled IPA with a Windows sideloading
 Alternatively, follow the official [AltStore Classic Windows setup](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows). Keep the same bundle identity when refreshing an installed app, and export a backup before removing or replacing an installation, because uninstalling can remove its local workspace.
 
 ## Bring your existing workspace
+
+With account sign-in configured on the website, open **Workspace → Device sync → Sign in with GitHub**. Use the same GitHub account that owns your workspace. A new iPhone restores the encrypted cloud copy automatically; an iPhone with independent saved records pauses for conflict review. Existing Keychain connections keep working after an app update. Update using the same bundle identity and signing setup to preserve local records and Keychain access.
+
+Manual backup transfer remains available:
 
 1. Export a JSON backup from the Ascend website's Settings.
 2. Transfer the file to Files on the iPhone.
@@ -71,3 +75,7 @@ Workspace → Studio & tools adds courses/GPA, assignments, habits, focus histor
 5. Tap Sync now. If the app has a different workspace, save backups and explicitly choose the website/cloud copy or this device’s copy.
 
 Saved edits sync after about 15 seconds, with checks roughly every minute while active. Closed-app iOS background syncing is not guaranteed. Conflicting changes pause for review. The app stores the token/key in iOS Keychain; workspace backups exclude them. Keep the original encryption key, because a replacement key cannot decrypt existing cloud history. Connection files should be kept privately and extra transfer copies removed. No connection or personal records are preloaded in this IPA.
+
+## Version 1.3
+
+The native app matches the website's rounded lavender, sage, and peach design. A dedicated **FAFSA & CSS** tab separates aid forms and supporting documents from admissions checklists. Legacy aid requirements remain editable without reducing admissions progress. GitHub sign-in restores the existing private connection without transferring a file. Existing planner, calendar import/export, task, essay, document, profile, and studio features remain available offline.

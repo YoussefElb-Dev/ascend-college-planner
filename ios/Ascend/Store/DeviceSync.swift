@@ -58,7 +58,8 @@ struct SyncConflict { var remote: RemoteWorkspace; var localHash: String }
             if let remote=try await read(c) {
                 let remoteHash=try SyncCrypto.fingerprint(remote.workspace)
                 if force != nil, let prior=conflict, prior.remote.sha != remote.sha || prior.localHash != localHash {conflict=SyncConflict(remote:remote,localHash:localHash);status="A copy changed after review. Review both versions again.";return}
-                let decision=force ?? SyncCrypto.decision(local:localHash,remote:remoteHash,baseline:c.baseline)
+                let fresh = !FileManager.default.fileExists(atPath: store.file.path)
+                let decision=force ?? (fresh && c.baseline == nil ? "pull" : SyncCrypto.decision(local:localHash,remote:remoteHash,baseline:c.baseline))
                 if decision=="conflict" {conflict=SyncConflict(remote:remote,localHash:localHash);status="Both copies have changes. Review them below.";return}
                 if decision=="pull" {
                     guard try SyncCrypto.fingerprint(store.workspace)==localHash else{status="New local edits detected. Sync again.";return}

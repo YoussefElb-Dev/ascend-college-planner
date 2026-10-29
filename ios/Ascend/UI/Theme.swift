@@ -4,21 +4,21 @@ extension Color {
     init(hex: UInt32) { self.init(red: Double((hex >> 16) & 255) / 255, green: Double((hex >> 8) & 255) / 255, blue: Double(hex & 255) / 255) }
 }
 
-// Keep the native palette aligned with dist/mission.css.
+// Keep the native palette aligned with dist/fluid.css.
 struct AscendColors {
-    var background = Color(hex: 0xf8f9fb)
+    var background = Color(hex: 0xf3f2f8)
     var surface = Color.white
     var solid = Color.white
-    var text = Color(hex: 0x17283f)
-    var muted = Color(hex: 0x78869b)
-    var border = Color(hex: 0xe7e8eb)
+    var text = Color(hex: 0x292c43)
+    var muted = Color(hex: 0x6d7087)
+    var border = Color(hex: 0xdedde9)
     var edge = Color.white.opacity(0.82)
-    var accent = Color(hex: 0x3264f5)
+    var accent = Color(hex: 0x7161bc)
     var onAccent = Color.white
-    var lavender = Color(hex: 0xf0f2fa)
-    var mint = Color(hex: 0xedf4ee)
-    var peach = Color(hex: 0xfaf4e9)
-    var blue = Color(hex: 0xedf2ff)
+    var lavender = Color(hex: 0xeae4f6)
+    var mint = Color(hex: 0xe3eee8)
+    var peach = Color(hex: 0xf7eadd)
+    var blue = Color(hex: 0xeae5f9)
     var hero = [Color(hex: 0xedcfc4), Color(hex: 0xead3de), Color(hex: 0xd9ccea)]
     var dark = false
     var monochrome = false
@@ -35,13 +35,13 @@ struct AscendColors {
             c.hero = [Color(hex: 0xdedede), Color(hex: 0xe7e7e7), Color(hex: 0xdedede)]
         } else if mode == "dark" || (mode == "system" && scheme == .dark) {
             c.dark = true
-            c.background = Color(hex: 0x111722); c.surface = Color(hex: 0x192130)
-            c.solid = Color(hex: 0x192130); c.text = Color(hex: 0xe5ebf6)
-            c.muted = Color(hex: 0x9aa9bf); c.border = Color(hex: 0x2b3546)
-            c.edge = Color.white.opacity(0.17); c.accent = Color(hex: 0x7c9dff)
-            c.onAccent = Color(hex: 0x101a2d)
-            c.lavender = Color(hex: 0x282f45); c.mint = Color(hex: 0x253a32)
-            c.peach = Color(hex: 0x3b3428); c.blue = Color(hex: 0x263652)
+            c.background = Color(hex: 0x191b29); c.surface = Color(hex: 0x252839)
+            c.solid = Color(hex: 0x252839); c.text = Color(hex: 0xf0edf7)
+            c.muted = Color(hex: 0xb0abc5); c.border = Color(hex: 0x3d3c53)
+            c.edge = Color.white.opacity(0.17); c.accent = Color(hex: 0xc1b0f1)
+            c.onAccent = Color(hex: 0x241f34)
+            c.lavender = Color(hex: 0x38324e); c.mint = Color(hex: 0x2b423d)
+            c.peach = Color(hex: 0x493c33); c.blue = Color(hex: 0x3b3455)
             c.hero = [Color(hex: 0x524457), Color(hex: 0x304b43)]
         }
         return c
@@ -66,7 +66,7 @@ extension Font {
 struct PageBackground: View {
     @Environment(\.ascendColors) private var colors
     var body: some View {
-        colors.background.ignoresSafeArea()
+        ZStack { colors.background; RadialGradient(colors: [colors.lavender.opacity(0.8), .clear], center: .topLeading, startRadius: 0, endRadius: 560); RadialGradient(colors: [colors.mint.opacity(0.65), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 480) }.ignoresSafeArea()
     }
 }
 
@@ -77,20 +77,20 @@ struct Page<Content: View>: View {
 }
 
 struct GlassSurface: ViewModifier {
-    var radius: CGFloat = 12
+    var radius: CGFloat = 24
     @Environment(\.ascendColors) private var colors
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ViewBuilder func body(content: Content) -> some View {
-        content.background(colors.solid, in: RoundedRectangle(cornerRadius: radius)).overlay { RoundedRectangle(cornerRadius: radius).stroke(colors.border, lineWidth: 1) }
+        content.background(reduceTransparency ? AnyShapeStyle(colors.solid) : AnyShapeStyle(.ultraThinMaterial), in: RoundedRectangle(cornerRadius: radius, style: .continuous)).overlay { RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(colors.border.opacity(0.8), lineWidth: 0.7) }
     }
 }
-extension View { func glassPanel(_ radius: CGFloat = 12) -> some View { modifier(GlassSurface(radius: radius)) } }
+extension View { func glassPanel(_ radius: CGFloat = 24) -> some View { modifier(GlassSurface(radius: radius)) } }
 
 struct Panel<Content: View>: View {
     @Environment(\.ascendColors) private var colors
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ViewBuilder var content: Content
-    var body: some View { VStack(alignment: .leading, spacing: 10) { content }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(reduceTransparency ? colors.solid : colors.surface, in: RoundedRectangle(cornerRadius: 12)).overlay { RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 1) } }
+    var body: some View { VStack(alignment: .leading, spacing: 10) { content }.padding(16).frame(maxWidth: .infinity, alignment: .leading).glassPanel(26) }
 }
 
 struct SectionHeading: View {

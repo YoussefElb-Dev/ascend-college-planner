@@ -34,6 +34,7 @@ struct RootView: View {
             NavigationStack { MissionView() }.tabItem { Label("Plan", systemImage: "square.grid.2x2") }.tag(0)
             NavigationStack { ApplicationsView() }.tabItem { Label("Colleges", systemImage: "building.columns") }.tag(1)
             NavigationStack { PlannerView() }.tabItem { Label("Planner", systemImage: "calendar") }.tag(2)
+            NavigationStack { FinancialAidView() }.tabItem { Label("FAFSA & CSS", systemImage: "leaf") }.tag(4)
             NavigationStack { WorkspaceView() }.tabItem { Label("Workspace", systemImage: "tray.full") }.tag(3)
         }
     }

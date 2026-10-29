@@ -81,7 +81,7 @@ final class AscendUITests: XCTestCase {
         app.tabBars.buttons["Workspace"].tap()
         app.buttons["Device sync"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Import website device connection"].waitForExistence(timeout:5))
-        XCTAssertFalse(app.buttons["Connect private sync"].isEnabled)
+        XCTAssertTrue(app.buttons["Sign in with GitHub"].exists)
         screenshot("14-Device-sync")
         app.navigationBars.buttons.element(boundBy:0).tap()
         app.buttons["Search workspace"].firstMatch.tap()

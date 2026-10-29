@@ -1,5 +1,6 @@
-const CACHE = "ascend-static-v17";
+const CACHE = "ascend-static-v18";
 const FILES = [
+  "./account.js", "./account-sync-model.js",
   "./fluid.css", "./aid-model.js",
   "./mission.css", "./mission-home.js", "./mission-model.js",
   "./application-views.js",
@@ -45,6 +46,7 @@ self.addEventListener("activate", (e) =>
 );
 self.addEventListener("fetch", (e) => {
   if (
+    new URL(e.request.url).pathname.startsWith('/api/') ||
     e.request.method !== "GET" ||
     new URL(e.request.url).origin !== self.location.origin
   )

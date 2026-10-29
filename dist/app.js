@@ -3210,9 +3210,11 @@ const extras = createExtras({
     navigate("essays");
   },
 });
-let deviceSync = createDeviceSync({getState:()=>state,render,header,btn,field,formDialog,toast,isLocked:isPrivacyLocked,applyRemote:workspace=>{try{if(storageReadFailed)return false;const next=parseWorkspaceBackup(JSON.stringify(workspace));localStorage.setItem("ascend.before-last-sync.v1",JSON.stringify(state));persistState(next);state=next;applyTheme();return true;}catch{return false;}}});
+let deviceSync = createDeviceSync({getState:()=>state,render,header,btn,field,formDialog,toast,isLocked:isPrivacyLocked,lock:lockWorkspace,isFreshDevice:()=>!localStorage.getItem(STORAGE_KEY),applyRemote:workspace=>{try{if(storageReadFailed)return false;const next=parseWorkspaceBackup(JSON.stringify(workspace));localStorage.setItem("ascend.before-last-sync.v1",JSON.stringify(state));persistState(next);state=next;applyTheme();return true;}catch{return false;}}});
 const studio = createWorkspaceTools({getState:()=>state,mutate,render,header,btn,ibtn,field,select,textarea,appSelect,formDialog,dialog,closeDialog,toast,csv});
 window.addEventListener("ascend:unlock",()=>{render();deviceSync.sync();});
+root.innerHTML='<main class="privacy-screen"><section class="panel" role="status"><span class="eyebrow">YOUR PRIVATE WORKSPACE</span><h1>Opening your workspace…</h1><p>Restoring your saved applications and plans.</p></section></main>';
+await deviceSync.initialize();
 render();deviceSync.start();
 if ("serviceWorker" in navigator)
   navigator.serviceWorker.register("./sw.js").catch(() => {});

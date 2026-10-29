@@ -2,6 +2,8 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {createAccountHandler} from '../server/account-service.js';
+const accountHandler=createAccountHandler();
 const root = fileURLToPath(new URL("../dist/", import.meta.url));
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -22,6 +24,7 @@ http
       res.writeHead(400).end();
       return;
     }
+    if(requested==='/api/account'){accountHandler(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end('{"error":"Account sign-in is unavailable."}');});return;}
     const target = path.resolve(
       root,
       "." + requested + (requested.endsWith("/") ? "index.html" : ""),

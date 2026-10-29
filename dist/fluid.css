@@ -17,6 +17,7 @@ html,body {background:var(--bg);min-height:100%;}
 /* Keep wheel, touch, and keyboard scrolling without visible scrollbar tracks. */
 html,body,* {scrollbar-width:none!important;-ms-overflow-style:none;}
 *::-webkit-scrollbar {display:none!important;width:0!important;height:0!important;}
+.account-access:empty{display:none}.account-access{padding:16px 0;margin:6px 0 16px;border-bottom:1px solid var(--border)}.account-access .btn{width:100%;justify-content:center}.account-access p{margin:10px 0 0;font-size:12px}
 body {font-size:13px;line-height:1.6;background-image:radial-gradient(ellipse at 7% 0%,color-mix(in srgb,var(--lavender-bg) 80%,transparent),transparent 43%),radial-gradient(ellipse at 100% 45%,color-mix(in srgb,var(--mint-bg) 65%,transparent),transparent 48%);background-attachment:fixed;}
 h1,h2,h3 {font-weight:700;} h1{font-size:29px;letter-spacing:-1px;} h2{font-size:19px;} strong{font-weight:700;}
 .app-content {margin:0;}

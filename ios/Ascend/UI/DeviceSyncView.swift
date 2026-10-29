@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AuthenticationServices
 
 struct DeviceSyncView: View {
     @EnvironmentObject var store: WorkspaceStore
@@ -14,24 +15,27 @@ struct DeviceSyncView: View {
     @State private var document=TransferFile()
     @State private var filename="ascend-private-device-connection"
     @State private var confirm=""
+    @StateObject private var account = AccountSignIn()
     var body: some View {
         ZStack { PageBackground(); Form {
             Section("Connection") {
                 Label(sync.status,systemImage:sync.busy ? "arrow.triangle.2.circlepath":"lock.shield").font(.appHeadline)
+                Button { Task { do { try await account.connect(to: sync) } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin { } catch { store.error = error.localizedDescription } } } label: { Label(account.busy ? "Signing in…" : "Sign in with GitHub", systemImage: "person.crop.circle.badge.checkmark") }.disabled(account.busy || sync.busy)
+                Text("Use the same GitHub account as the website. Your workspace restores automatically on a new iPhone; no connection file is needed.").font(.appCaption).foregroundStyle(colors.muted)
                 if let c=sync.connection {
                     Text(c.owner+"/"+c.repo).font(.appCaption).foregroundStyle(colors.muted)
                     if let date=c.lastSync {Text("Last synced "+date).font(.appMicro).foregroundStyle(colors.muted)}
                     Button("Sync now") {Task{await sync.sync()}}.disabled(sync.busy)
                     Button("Export connection for another device") {exportConnection(c)}.disabled(sync.busy)
                     Button("Disconnect this iPhone",role:.destructive) {do{try sync.disconnect()}catch{store.error=error.localizedDescription}}.disabled(sync.busy)
-                } else {
+                } else { DisclosureGroup("Advanced manual connection") {
                     TextField("GitHub owner",text:$owner).textInputAutocapitalization(.never).autocorrectionDisabled()
                     TextField("Private repository",text:$repo).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Fine-grained GitHub token",text:$token).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Original sync key (or generate on first device)",text:$key).textInputAutocapitalization(.never).autocorrectionDisabled()
                     Button("Generate first-device key") {key=SyncCrypto.newKey()}
                     Button("Connect private sync") {Task{do{try await sync.connect(SyncConnection(owner:owner.trimmingCharacters(in:.whitespaces),repo:repo.trimmingCharacters(in:.whitespaces),token:token.trimmingCharacters(in:.whitespaces),key:key.trimmingCharacters(in:.whitespaces)));token="";key=""}catch{store.error=error.localizedDescription}}}.disabled(sync.busy||token.isEmpty||key.isEmpty)
-                }
+                } }
                 Button("Import website device connection") {importing=true}.disabled(sync.busy)
             }
             if let conflict=sync.conflict {
@@ -50,12 +54,12 @@ struct DeviceSyncView: View {
                 Text("Your full workspace, including documents, is encrypted on this device before upload. A random AES-256-GCM key protects the file in your private GitHub repository. The token and key are stored in iOS Keychain and excluded from normal workspace backups.").font(.appCaption).foregroundStyle(colors.muted)
                 Text("A device connection file contains the token and encryption key. Transfer it privately, then remove extra copies. Keep the original key; a new key cannot decrypt the existing file.").font(.appCaption).foregroundStyle(colors.muted)
             }
-            Section("One-time setup") {
-                Text("On the website, open Device sync, create a fine-grained GitHub token for only ascend-private-sync with Contents read/write access, and connect. Export that connection and import it here. Choose the website/cloud workspace once if this is a new iPhone.").font(.appBody)
+            Section("Your workspace everywhere") {
+                Text("Sign in above to connect the existing encrypted workspace. A populated iPhone copy is preserved until you review any conflict. Your saved connection stays protected in iOS Keychain.").font(.appBody)
                 SafeLink(title:"Open Ascend device sync",address:"https://ascend-college-planner.vercel.app/#sync")
                 SafeLink(title:"GitHub token setup",address:"https://github.com/settings/personal-access-tokens/new")
             }
-        }.scrollContentBackground(.hidden) }.navigationTitle("Device sync").navigationBarTitleDisplayMode(.inline)
+        }.scrollContentBackground(.hidden).scrollIndicators(.hidden) }.navigationTitle("Device sync").navigationBarTitleDisplayMode(.inline)
             .fileImporter(isPresented:$importing,allowedContentTypes:[.json]) { result in
                 do{let url=try result.get();let granted=url.startAccessingSecurityScopedResource();defer{if granted{url.stopAccessingSecurityScopedResource()}};guard (try url.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? 0)<16000 else{throw WorkspaceError.invalid("Choose a small device connection file.")};let c=try JSONDecoder().decode(SyncConnection.self,from:Data(contentsOf:url));guard c.format=="ascend-sync-connection-v1" else{throw WorkspaceError.invalid("This is not a device connection file.")};Task{do{try await sync.connect(c)}catch{store.error=error.localizedDescription}}}catch{store.error=error.localizedDescription}
             }

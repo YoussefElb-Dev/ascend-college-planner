@@ -161,7 +161,7 @@ public struct Workspace: Equatable, Sendable {
         guard parts.count == 2, parts[0].hasPrefix("data:"), allowed.contains(String(parts[0].dropFirst(5)).lowercased()), let d = Data(base64Encoded: parts[1]), d.count <= 1024 * 1024, case .string? = r.fields["name"], case .string? = r.fields["type"], case .number? = r.fields["size"], r.number("size") >= 0, r.number("size") <= 1024 * 1024 else { throw WorkspaceError.invalid("Invalid or unsupported document.") }
     }
     public static func progress(_ app: Entry) -> Double {
-        let list = app.entries("requirements").filter { $0.fields["required"] != .bool(false) && !$0.flag("exempt") }
+        let list = AidModel.admissions(app).filter { $0.fields["required"] != .bool(false) && !$0.flag("exempt") }
         let total = list.reduce(0.0) { $0 + max(1, $1.number("weight")) }
         guard total > 0 else { return 0 }
         return list.filter { $0.flag("done") }.reduce(0.0) { $0 + max(1, $1.number("weight")) } / total

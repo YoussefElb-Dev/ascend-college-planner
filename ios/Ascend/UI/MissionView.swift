@@ -22,9 +22,9 @@ struct MissionView: View {
     var body: some View {
         Page {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) { Text("MY WORKSPACE").font(.appMicro.weight(.semibold)).tracking(1.4).foregroundStyle(colors.muted); Text("Mission Map").font(.appTitle) }
+                VStack(alignment: .leading, spacing: 4) { Text("Ascend").font(.appMicro.weight(.semibold)).tracking(1.4).foregroundStyle(colors.accent); Text("Your overview").font(.appTitle) }
                 Spacer()
-                Button { edit = EditTarget("tasks") } label: { Label("Add task", systemImage: "plus").font(.appCaption.weight(.semibold)) }.buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle(radius: 8)).foregroundStyle(colors.onAccent)
+                Button { edit = EditTarget("tasks") } label: { Label("Add task", systemImage: "plus").font(.appCaption.weight(.semibold)) }.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).foregroundStyle(colors.onAccent)
             }.padding(.vertical, 4)
             HStack(spacing: 8) {
                 Picker("Plan view", selection: $view) { Text("Overview").tag("Overview"); Text("Board").tag("Board") }.pickerStyle(.segmented).accessibilityIdentifier("missionView")

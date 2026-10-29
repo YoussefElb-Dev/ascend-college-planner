@@ -13,6 +13,6 @@ struct ApplicationCard: View {
                 HStack { Text("\(Int(Workspace.progress(app) * 100))% checklist"); Spacer(); Text(app.text("deadline").isEmpty ? "Date unverified" : DateKey.label(app.text("deadline"))) }.font(.appMicro).foregroundStyle(colors.muted)
             }
             Image(systemName: "chevron.right").font(.appCaption.weight(.semibold)).foregroundStyle(.tertiary).padding(.top, 4)
-        }.padding(12).background(colors.surface, in: RoundedRectangle(cornerRadius: 12)).overlay { RoundedRectangle(cornerRadius: 12).stroke(colors.border, lineWidth: 0.7) }
+        }.padding(14).glassPanel(24)
     }
 }

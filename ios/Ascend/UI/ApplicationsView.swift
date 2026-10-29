@@ -31,7 +31,7 @@ struct ApplicationsView: View {
     private func matches(_ app: Entry, _ tab: String) -> Bool {
         if tab == "All" { return true }
         if tab == "Submitted" { return ["Submitted", "Awaiting Decision"].contains(app.text("status")) }
-        if tab == "Complete" { let required = app.entries("requirements").filter { $0.fields["required"] != .bool(false) && !$0.flag("exempt") }; return !required.isEmpty && required.allSatisfy { $0.flag("done") } }
+        if tab == "Complete" { let required = AidModel.admissions(app).filter { $0.fields["required"] != .bool(false) && !$0.flag("exempt") }; return !required.isEmpty && required.allSatisfy { $0.flag("done") } }
         return app.text("status") == tab
     }
 }
@@ -62,8 +62,8 @@ struct ApplicationDetail: View {
             Panel {
                 HStack { SectionHeading(title: "Your checklist"); Spacer(); Text("\(Int(Workspace.progress(app) * 100))%").font(.appHeadline).monospacedDigit() }
                 ProgressView(value: Workspace.progress(app))
-                if app.entries("requirements").isEmpty { Text("Add the requirements listed in your college portal.").font(.appBody).foregroundStyle(colors.muted) }
-                ForEach(app.entries("requirements")) { req in
+                if AidModel.admissions(app).isEmpty { Text("Add the requirements listed in your college portal.").font(.appBody).foregroundStyle(colors.muted) }
+                ForEach(AidModel.admissions(app)) { req in
                     HStack(alignment: .top, spacing: 4) {
                         CheckButton(done: req.flag("done") || req.flag("exempt"), label: req.title) { store.toggleRequirement(id, req.id) }.disabled(req.flag("exempt"))
                         VStack(alignment: .leading, spacing: 5) {
@@ -81,9 +81,10 @@ struct ApplicationDetail: View {
                 Button { showRequirement = true } label: { Label("Add requirement", systemImage: "plus") }.font(.appBody.weight(.medium))
             }
             let linkedTasks = store.workspace.records("tasks").filter { $0.text("applicationId") == id }
+            NavigationLink { FinancialAidView() } label: { Label("FAFSA, CSS & aid documents", systemImage: "leaf").font(.appHeadline) }.padding(14).glassPanel()
             if !linkedTasks.isEmpty { Panel { SectionHeading(title: "Tasks & portal setup"); ForEach(linkedTasks) { RecordRow(entry: $0, collection: "tasks") } } }
             if !app.text("notes").isEmpty { Panel { SectionHeading(title: "Application notes"); Text(app.text("notes")).font(.appBody).textSelection(.enabled) } }
-            ForEach(["aid", "essays", "notes", "recommendations", "offers"], id: \.self) { key in
+            ForEach(["essays", "notes", "recommendations", "offers"], id: \.self) { key in
                 let linked = store.workspace.records(key).filter { $0.text("applicationId") == id }
                 if !linked.isEmpty { Panel { SectionHeading(title: RecordSpec.title(key)); ForEach(linked) { RecordRow(entry: $0, collection: key) } } }
             }

@@ -63,8 +63,8 @@ jobs:
           lipo -archs native-artifacts/Payload/Ascend.app/Ascend | grep arm64
           test ! -e native-artifacts/Payload/Ascend.app/embedded.mobileprovision
           cd native-artifacts
-          zip -qry Ascend-1.2-unsigned.ipa Payload
-          shasum -a 256 Ascend-1.2-unsigned.ipa > SHA256SUMS.txt
+          zip -qry Ascend-1.3-unsigned.ipa Payload
+          shasum -a 256 Ascend-1.3-unsigned.ipa > SHA256SUMS.txt
           rm -r Payload
       - name: Select iPhone simulator
         id: simulator
