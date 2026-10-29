@@ -34,6 +34,7 @@ export function createAccountHandler({env=process.env,transport=fetch,now=Date.n
   if(mode==='connection'&&req.method==='GET'){
    if(!authenticated)return json(res,401,{error:'Sign in with your GitHub account to restore your workspace.'});
    if(req.headers['x-ascend-client']!=='web'||['cross-site','same-site'].includes(req.headers['sec-fetch-site']))return json(res,403,{error:'Open Ascend directly to connect your workspace.'});
+   const at=now();res.setHeader('Set-Cookie',cookie(SESSION_COOKIE,signClaim({...session,iat:at,exp:at+7*86400000},c.sessionSecret),7*86400));
    return json(res,200,connection());
   }
   if(mode==='native-connection'&&req.method==='POST'){

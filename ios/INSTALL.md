@@ -68,13 +68,9 @@ Use `--preview` as an Xcode launch argument only when you want disposable synthe
 
 Workspace → Studio & tools adds courses/GPA, assignments, habits, focus history and timer, essay prompts, interview practice, weighted college comparisons, weekly reviews, submission receipts, and research notes. Workspace search spans applications and these collections. Dated schoolwork appears in the planner.
 
-1. On the live website, unlock with **2010** and open **Workspace → Device sync**. The password is a local privacy screen, not server authentication.
-2. Create a fine-grained GitHub token limited to the private `YoussefElb-Dev/ascend-private-sync` repository, with **Contents: read and write**. Enter it directly in Ascend, never in chat. Choose an expiry you can renew.
-3. Connect and sync the website first. It generates a random AES-256-GCM encryption key on the first device.
-4. Export the device connection, transfer it privately to the iPhone, and choose **Workspace → Device sync → Import website device connection**. The connection file contains both secrets.
-5. Tap Sync now. If the app has a different workspace, save backups and explicitly choose the website/cloud copy or this device’s copy.
+Current versions connect through **Workspace → Device sync → Sign in with GitHub**. No token, key, or connection-file setup is shown in the app. On the website, connect the same GitHub account once, then use the website password screen. The password opens the local copy; GitHub identity authorizes restoring private cloud data.
 
-Saved edits sync after about 15 seconds, with checks roughly every minute while active. Closed-app iOS background syncing is not guaranteed. Conflicting changes pause for review. The app stores the token/key in iOS Keychain; workspace backups exclude them. Keep the original encryption key, because a replacement key cannot decrypt existing cloud history. Connection files should be kept privately and extra transfer copies removed. No connection or personal records are preloaded in this IPA.
+Saved edits sync after about 15 seconds, with checks roughly every minute while active. Closed-app iOS background syncing is not guaranteed. Conflicting changes pause for review. The app stores its connection in iOS Keychain; workspace backups exclude credentials. No connection or personal records are preloaded in this IPA.
 
 ## Version 1.3
 
