@@ -1,4 +1,4 @@
-const CACHE = "ascend-static-v19";
+const CACHE = "ascend-static-v20";
 const FILES = [
   "./account.js", "./account-sync-model.js",
   "./fluid.css", "./aid-model.js",
