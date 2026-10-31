@@ -23,3 +23,10 @@ export function aidRecords(state, category) {
 export function aidIsComplete(record) {
   return ["Complete", "Not applicable"].includes(record.status);
 }
+export function cssSubmissionSummary(state) {
+  const records=aidRecords(state,"CSS Profile");
+  const submitted=records.filter(record=>record.status==="Complete"&&/^\d{4}-\d{2}-\d{2}$/.test(record.submissionDate||""));
+  const schools=[...new Map(submitted.filter(record=>record.applicationId).map(record=>[record.applicationId,record])).values()];
+  const filing=submitted.find(record=>!record.applicationId);
+  return {submitted:Boolean(filing),date:filing?.submissionDate||"",schools,received:schools.filter(record=>record.receiptStatus==="Received").length};
+}

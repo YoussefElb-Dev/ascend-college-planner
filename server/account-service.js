@@ -1,12 +1,13 @@
 import {createHmac,randomBytes,timingSafeEqual,createHash} from 'node:crypto';
+import {openPasswordPolicy,checkPassword} from './password-policy.js';
 
 const SESSION_COOKIE='__Host-ascend_session',FLOW_COOKIE='__Host-ascend_oauth';
 const random=()=>randomBytes(32).toString('base64url');
 export function accountConfig(env=process.env){
  const c={origin:env.ASCEND_ORIGIN,owner:env.ASCEND_GITHUB_OWNER,ownerId:env.ASCEND_GITHUB_OWNER_ID,repo:env.ASCEND_GITHUB_REPO,token:env.ASCEND_GITHUB_TOKEN,key:env.ASCEND_SYNC_KEY,clientId:env.ASCEND_GITHUB_CLIENT_ID,clientSecret:env.ASCEND_GITHUB_CLIENT_SECRET,sessionSecret:env.ASCEND_SESSION_SECRET};
- if(Object.values(c).some(v=>typeof v!=='string'||!v))return null;
+ if(Object.entries(c).some(([k,v])=>!['clientId','clientSecret'].includes(k)&&(typeof v!=='string'||!v)))return null;
  try{if(new URL(c.origin).origin!==c.origin||!c.origin.startsWith('https://')||!/^\d+$/.test(c.ownerId)||!/^[-\w]+$/.test(c.owner)||!/^[-\w.]+$/.test(c.repo)||['.','..'].includes(c.repo)||Buffer.from(c.key,'base64').length!==32||Buffer.from(c.sessionSecret,'base64').length<32)return null;}catch{return null;}
- return c;
+ return {...c,passwordPolicy:openPasswordPolicy(c.key,env.ASCEND_PASSWORD_POLICY||undefined)};
 }
 export function signClaim(value,secret){const payload=Buffer.from(JSON.stringify(value)).toString('base64url');return `${payload}.${createHmac('sha256',secret).update(payload).digest('base64url')}`;}
 export function verifyClaim(token,secret,purpose,now=Date.now()){
@@ -21,18 +22,38 @@ async function requestBody(req){if(req.body){const body=typeof req.body==='strin
 async function githubJSON(url,options,transport){const r=await transport(url,{...options,redirect:'error',signal:AbortSignal.timeout(20000),headers:{Accept:'application/json',...options.headers}});if(!r.ok)throw Error('GitHub sign-in could not be completed.');return r.json();}
 
 export function createAccountHandler({env=process.env,transport=fetch,now=Date.now}={}){
+ const attempts=new Map();let activeChecks=0,windowStart=0,windowChecks=0;
  return async function handle(req,res){
   res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Vary','Cookie');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   const c=accountConfig(env),url=new URL(req.url,'https://ascend.invalid'),mode=url.searchParams.get('mode')||(url.searchParams.has('code')||url.searchParams.has('error')?'callback':'session');
   if(!['GET','POST'].includes(req.method))return json(res,405,{error:'Method not allowed.'});
   if(!c)return json(res,mode==='session'?200:503,{configured:false,authenticated:false,error:mode==='session'?undefined:'Account sign-in has not been configured yet.'});
   const jar=cookies(req),session=verifyClaim(jar[SESSION_COOKIE],c.sessionSecret,'session',now());
-  const authenticated=Boolean(session&&session.id===c.ownerId);
+  const authenticated=Boolean(session&&session.id===c.ownerId&&(session.auth!=='password'||session.policy===c.passwordPolicy?.version));
   const connection=()=>({format:'ascend-sync-connection-v1',owner:c.owner,repo:c.repo,token:c.token,key:c.key});
   function nativeReturn(challenge){const at=now(),ticket=signClaim({purpose:'native',id:c.ownerId,challenge,iat:at,exp:at+90000},c.sessionSecret);return redirect(res,'ascend://signin?ticket='+encodeURIComponent(ticket));}
-  if(mode==='session'&&req.method==='GET')return json(res,200,{configured:true,authenticated,...(authenticated?{user:{login:session.login}}:{})});
+  if(mode==='session'&&req.method==='GET')return json(res,200,{configured:true,passwordEnabled:Boolean(c.passwordPolicy),authenticated,...(authenticated?{user:{login:session.login}}:{})});
+  if(mode==='password-login'&&req.method==='POST'){
+   if(!sameOrigin(req,c)||req.headers['x-ascend-client']!=='web')return json(res,403,{error:'Open Ascend directly to sign in.'});
+   if(!c.passwordPolicy)return json(res,503,{error:'Website sign-in is unavailable. Your saved data is preserved.'});
+   const at=now(),identity=createHmac('sha256',c.sessionSecret).update(String(req.headers['x-real-ip']||req.socket?.remoteAddress||'unknown').slice(0,128)).digest('hex');
+   for(const [key,value] of attempts)if(value.until<=at)attempts.delete(key);
+   if(at-windowStart>=60000){windowStart=at;windowChecks=0;}
+   const previous=attempts.get(identity),bucket=previous||{count:0,until:at+15*60000};
+   if(bucket.count>=5||activeChecks>=3||windowChecks>=60){res.setHeader('Retry-After',String(bucket.count>=5?Math.max(1,Math.ceil((bucket.until-at)/1000)):60));return json(res,429,{error:'Too many sign-in attempts. Please wait before trying again.'});}
+   if(attempts.size>=5000&&!previous){res.setHeader('Retry-After','60');return json(res,429,{error:'Please wait before trying again.'});}
+   bucket.count++;attempts.set(identity,bucket);windowChecks++;activeChecks++;
+   try{
+    const body=await requestBody(req);
+    if(!await checkPassword(body.password,c.passwordPolicy))return json(res,401,{error:'That password is incorrect.'});
+    attempts.delete(identity);
+    const claim=signClaim({purpose:'session',id:c.ownerId,login:c.owner,auth:'password',policy:c.passwordPolicy.version,nonce:random(),iat:at,exp:at+7*86400000},c.sessionSecret);
+    res.setHeader('Set-Cookie',cookie(SESSION_COOKIE,claim,7*86400));
+    return json(res,200,{authenticated:true,user:{login:c.owner},passwordVersion:c.passwordPolicy.version});
+   }catch{return json(res,400,{error:'Sign-in could not be completed. Try again.'});}finally{activeChecks--;}
+  }
   if(mode==='connection'&&req.method==='GET'){
-   if(!authenticated)return json(res,401,{error:'Sign in with your GitHub account to restore your workspace.'});
+   if(!authenticated)return json(res,401,{error:'Enter your website password to restore your workspace.'});
    if(req.headers['x-ascend-client']!=='web'||['cross-site','same-site'].includes(req.headers['sec-fetch-site']))return json(res,403,{error:'Open Ascend directly to connect your workspace.'});
    const at=now();res.setHeader('Set-Cookie',cookie(SESSION_COOKIE,signClaim({...session,iat:at,exp:at+7*86400000},c.sessionSecret),7*86400));
    return json(res,200,connection());
@@ -45,6 +66,8 @@ export function createAccountHandler({env=process.env,transport=fetch,now=Date.n
    if(native&&!/^[A-Za-z0-9_-]{43}$/.test(challenge||''))return json(res,400,{error:'Start sign-in from the Ascend app.'});
    if(authenticated&&native)return nativeReturn(challenge);
    if(authenticated)return redirect(res,c.origin+'/#sync');
+   if(!native&&c.passwordPolicy)return redirect(res,c.origin+'/#home');
+   if(!c.clientId||!c.clientSecret)return json(res,503,{error:'App account sign-in is unavailable.'});
    const state=random(),verifier=random(),at=now();
    const flow=signClaim({purpose:'oauth',state,verifier,...(native?{native:true,challenge}:{}),iat:at,exp:at+600000},c.sessionSecret);
    res.setHeader('Set-Cookie',cookie(FLOW_COOKIE,flow,600));

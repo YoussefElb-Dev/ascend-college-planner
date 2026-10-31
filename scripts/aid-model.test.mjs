@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {aidRecords,aidCategory,isAidRequirement,aidIsComplete} from "../dist/aid-model.js";
+import {aidRecords,aidCategory,isAidRequirement,aidIsComplete,cssSubmissionSummary} from "../dist/aid-model.js";
 import {applicationChecklist} from "../dist/application-views.js";
 import {readiness} from "../dist/workspace-tools-model.js";
 import {blankState,calendarEvents} from "../dist/core.js";
@@ -33,4 +33,9 @@ test("completed admissions leave upcoming reminders while aid keeps its separate
   state.applications=[{id:"a",name:"Example",status:"Submitted",deadline:"2026-11-01",requirements:[{done:true,title:"Application"},{done:false,title:"CSS Profile"}]}];
   state.aid=[{id:"f",title:"FAFSA",category:"FAFSA",status:"In Progress",due:"2026-11-01"},{id:"c",title:"CSS Profile",status:"In Progress",due:"2026-11-01"}];
   assert.deepEqual(calendarEvents(state).map(e=>e.target),["fafsa","css-profile"]);
+});
+test("CSS filing statistics distinguish completed submission, duplicate recipients, and school receipts",()=>{
+ const state={applications:[],aid:[{id:'filing',category:'CSS Profile',status:'Complete',submissionDate:'2026-10-30'},{id:'one',applicationId:'a',category:'CSS Profile',status:'Complete',submissionDate:'2026-10-30',receiptStatus:'Not verified'},{id:'duplicate',applicationId:'a',category:'CSS Profile',status:'Complete',submissionDate:'2026-10-30',receiptStatus:'Not verified'},{id:'two',applicationId:'b',category:'CSS Profile',status:'Complete',submissionDate:'2026-10-30',receiptStatus:'Received'},{id:'fafsa',category:'FAFSA',status:'In Progress'}]};
+ const before=structuredClone(state),summary=cssSubmissionSummary(state);assert.equal(summary.submitted,true);assert.equal(summary.schools.length,2);assert.equal(summary.received,1);assert.equal(summary.date,'2026-10-30');assert.deepEqual(state,before);
+ state.aid[0].status='In Progress';assert.equal(cssSubmissionSummary(state).submitted,false);
 });

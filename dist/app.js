@@ -34,7 +34,7 @@ import {
 import { icon } from "./icons.js";
 import { createExtras } from "./extras.js";
 import { homePage } from "./mission-home.js";
-import {admissionsRequirements,aidRecords,aidIsComplete,isAidRequirement} from "./aid-model.js";
+import {admissionsRequirements,aidRecords,aidIsComplete,isAidRequirement,cssSubmissionSummary} from "./aid-model.js";
 import { APPLICATION_TABS, applicationChecklist, matchesApplicationView } from "./application-views.js";
 import { createPlanner } from "./planner.js";
 import {
@@ -1472,9 +1472,11 @@ function portalsPage() {
 function aidPage(page) {
   const c=config[page],list=aidRecords(state,c.category),done=list.filter(aidIsComplete).length;
   const url=page==="fafsa"?"https://studentaid.gov/h/apply-for-aid/fafsa":"https://cssprofile.collegeboard.org/";
-  const legacy=list.filter(r=>r.legacy);
+  const legacy=list.filter(r=>r.legacy),filing=page==="css-profile"?cssSubmissionSummary(state):null;
+  const heading=filing?.submitted?"CSS Profile submitted":`${done} of ${list.length} items complete`;
+  const description=filing?.submitted?`College Board confirms submission on ${dateLabel(filing.date,true)} to ${filing.schools.length} schools. ${filing.received} school receipts confirmed; the remaining receipt checks stay separate from your completed filing.`:"Save your filing progress, confirmation notes, and each school's receipt here. Submitted and received are separate steps.";
   return header(c.title, page==="fafsa"?"Your federal aid application, with a space of its own.":"Your CSS Profile and school delivery checklist, together.",link("Open official website",url,"btn primary")+btn("Add item",`add-record:${page}`,"secondary","plus"))+
-    `<section class="aid-intro panel"><div><span class="eyebrow">FINANCIAL AID · SEPARATE FROM ADMISSIONS</span><h2>${done} of ${list.length} items complete</h2><p>Save your filing progress, confirmation notes, and each school's receipt here. Submitted and received are separate steps.</p><div class="aid-tabs"><a href="#fafsa" class="btn ${page==="fafsa"?"primary":"secondary"}">FAFSA</a><a href="#css-profile" class="btn ${page==="css-profile"?"primary":"secondary"}">CSS Profile</a><a href="#financial-aid" class="btn secondary">Other aid documents</a></div></div><div class="aid-progress-orb"><strong>${list.length?Math.round(done/list.length*100):0}<small>%</small></strong><span>checklist complete</span></div></section><section class="panel">${recordsBody(page)}${legacy.length?`<div class="panel-heading"><h2>From older application checklists</h2></div><div class="records-list">${legacy.map(r=>`<article class="record-row"><div class="record-info"><strong>${h(r.title)}</strong><small>${h(state.applications.find(a=>a.id===r.applicationId)?.name||"")}</small></div>${badge(r.status)}${btn("Edit",`edit-requirement:${r.applicationId}/${r.id}`,"secondary","edit")}</article>`).join("")}</div>`:""}</section><div class="info-note">${icon("shield")}Your admission checklists stay complete while you work on financial aid. This tracker does not file aid applications or verify eligibility.</div>`;
+    `<section class="aid-intro panel"><div><span class="eyebrow">FINANCIAL AID · SEPARATE FROM ADMISSIONS</span><h2>${heading}</h2><p>${h(description)}</p><div class="aid-tabs"><a href="#fafsa" class="btn ${page==="fafsa"?"primary":"secondary"}">FAFSA</a><a href="#css-profile" class="btn ${page==="css-profile"?"primary":"secondary"}">CSS Profile</a><a href="#financial-aid" class="btn secondary">Other aid documents</a></div></div><div class="aid-progress-orb"><strong>${list.length?Math.round(done/list.length*100):0}<small>%</small></strong><span>${filing?.submitted?"filing complete":"checklist complete"}</span></div></section><section class="panel">${recordsBody(page)}${legacy.length?`<div class="panel-heading"><h2>From older application checklists</h2></div><div class="records-list">${legacy.map(r=>`<article class="record-row"><div class="record-info"><strong>${h(r.title)}</strong><small>${h(state.applications.find(a=>a.id===r.applicationId)?.name||"")}</small></div>${badge(r.status)}${btn("Edit",`edit-requirement:${r.applicationId}/${r.id}`,"secondary","edit")}</article>`).join("")}</div>`:""}</section><div class="info-note">${icon("shield")}Your admission checklists stay complete while you work on financial aid. This tracker does not file aid applications or verify eligibility.</div>`;
 }
 function recordsPage(page) {
   const c = config[page];
