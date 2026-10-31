@@ -14,14 +14,14 @@ function finishUnlock(){locked=false;document.body.classList.remove('workspace-l
 function arm(){clearTimeout(timer);if(!locked)timer=setTimeout(lockWorkspace,5*60*1000);}
 async function offlineUnlock(password){let record;try{record=JSON.parse(localStorage.getItem(verifierStorage)||'null');}catch{}if(!await verifyOfflinePassword(password,record))throw Error('Connect to the internet to verify your password and restore your workspace.');}
 async function unlock(event){
- event.preventDefault();const button=event.target.querySelector('button[type=submit]');button.disabled=true;
+ event.preventDefault();const button=event.target.querySelector('button[type=submit]'),label=button.textContent;button.disabled=true;button.textContent='Checking…';document.getElementById('privacy-error').textContent='';
  try{
   const until=Number(localStorage.getItem('ascend.lock.until')||0);if(Date.now()<until)throw Error('Please wait '+Math.ceil((until-Date.now())/1000)+' seconds before trying again.');
   const password=new FormData(event.target).get('password');
   if(navigator.onLine===false)await offlineUnlock(password);
   else{try{const session=await passwordLogin(password);try{localStorage.setItem(verifierStorage,JSON.stringify(await offlineVerifier(password,session.passwordVersion)));}catch{}}catch(error){if(['TypeError','TimeoutError','AbortError'].includes(error.name))await offlineUnlock(password);else{if(error.status===401){const failures=Number(localStorage.getItem('ascend.lock.failures')||0)+1;localStorage.setItem('ascend.lock.failures',String(failures));if(failures%5===0)localStorage.setItem('ascend.lock.until',String(Date.now()+30000));}if(error.retryAfter)localStorage.setItem('ascend.lock.until',String(Date.now()+error.retryAfter*1000));throw error;}}}
   localStorage.removeItem('ascend.lock.failures');localStorage.removeItem('ascend.lock.until');finishUnlock();
- }catch(error){document.getElementById('privacy-error').textContent=error.message;}finally{button.disabled=false;}
+ }catch(error){document.getElementById('privacy-error').textContent=error.message;}finally{button.disabled=false;button.textContent=label;}
 }
 document.addEventListener('pointerdown',arm,{passive:true});document.addEventListener('keydown',arm);let hiddenAt=0;document.addEventListener('visibilitychange',()=>{if(document.hidden)hiddenAt=Date.now();else if(hiddenAt&&Date.now()-hiddenAt>=5*60*1000)lockWorkspace();});
 lockWorkspace();
