@@ -1,5 +1,24 @@
 # Verification
 
+## Visual polish · November 1, 2026
+
+Four independent screenshot reviews used the same 100-point rubric: hierarchy/typography 20, spacing/alignment 20, surfaces/color 20, controls/forms 15, responsive/accessibility presentation 15, and cohesion/detail 10. Failed attempts were revised and retained in the local QA artifacts. Every final pass exceeds the requested 96-point threshold.
+
+| Review pass | Final visual score |
+| --- | ---: |
+| Overview and task presentation | 99/100 |
+| Applications, forms, and college workspaces | 98/100 |
+| Planner, writing, and aid workspaces | 99.5/100 |
+| Appearance, navigation, settings, directory, and cohesion | 98.5/100 |
+
+- `node --run check`: syntax checks and all 70 existing tests pass.
+- Browser layout audit: all 41 workspace routes at 320, 390, 768, and 1440 pixels wide (164 checks); no horizontal page overflow, missing primary headings, or recovery banners.
+- Browser interactions verified required-field rejection, application creation and reload persistence, Ready to Submit filtering, keyboard focus, calendar count-to-day navigation, and appearance selection. The editor grows with its content in browsers supporting `field-sizing`; the fallback retains normal scrolling. Reduced motion/transparency remain supported.
+- A loopback-only preview used synthetic records and a separate storage key. Its fixture, screenshots, and review reports stay in ignored `qa-artifacts/design-polish/`; they are excluded from production. Authentication and private account records were not changed.
+- These are subjective visual rubric scores, not Lighthouse scores or an accessibility certification. Private-account sign-in and remote sync were not exercised with real credentials during visual QA.
+
+Earlier verification history follows.
+
 Verified October 22–23, 2026 (America/New_York), including the balanced palette, restored Plus Jakarta Sans, month-first personal planner, calendar file exchange, and public university media.
 
 ## Automated checks

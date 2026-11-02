@@ -146,7 +146,7 @@ export function createPlanner(ctx) {
           .map((e) => entry(e, true))
           .join(
             "",
-          )}${list.length > 3 ? `<button class="more-events" data-action="planner-day:${d}">+${list.length - 3} more</button>` : ""}</div></section>`;
+          )}${list.length > 3 ? `<button class="more-events" data-action="planner-day:${d}">+${list.length - 3} more</button>` : ""}</div>${list.length ? `<button class="mobile-event-count" data-action="planner-day:${d}" aria-label="${list.length} ${list.length === 1 ? "commitment" : "commitments"} on ${h(fullDate(d))}. Open day view."><i aria-hidden="true"></i>${list.length}</button>` : ""}</section>`;
       })
       .join(
         "",
