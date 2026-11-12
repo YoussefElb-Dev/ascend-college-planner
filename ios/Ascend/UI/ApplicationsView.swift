@@ -62,7 +62,7 @@ struct ApplicationDetail: View {
                     Text("DEADLINE").font(.appMicro.weight(.semibold)).tracking(1)
                     Text(app.text("deadline").isEmpty ? "Not yet verified" : DateKey.label(app.text("deadline"))).font(.appHeadline)
                     if !app.text("deadlineTime").isEmpty { Text(app.text("deadlineTime") + " " + app.text("timezone")).font(.appCaption).foregroundStyle(colors.muted) }
-                    let checkedAt = app.fields["portalAccess"]?.object?["checkedAt"]?.text ?? ""
+                    let checkedAt = app.fields["portalAccess"]?.object["checkedAt"]?.text ?? ""
                     Text(checkedAt.isEmpty ? "Portal status not yet verified" : "Portal verified \(DateKey.label(checkedAt))").font(.appCaption).foregroundStyle(colors.muted)
                 }
                 Spacer()
