@@ -6,6 +6,7 @@ import {TOOL_DEFINITIONS,validateTools} from "./workspace-tools-model.js";
 import {
   STORAGE_KEY,
   STATUSES,
+  TIERS,
   ROUNDS,
   PATHWAYS,
   SECTIONS,
@@ -36,7 +37,19 @@ import { createExtras } from "./extras.js";
 import { homePage } from "./mission-home.js";
 import { progressRing } from "./progress-ring.js";
 import {admissionsRequirements,aidRecords,aidIsComplete,isAidRequirement,cssSubmissionSummary} from "./aid-model.js";
-import { APPLICATION_TABS, applicationChecklist, matchesApplicationView } from "./application-views.js";
+import {
+  APPLICATION_TABS,
+  COMMON_REQUIREMENTS,
+  ADMITTED_CHECKLIST,
+  ENROLLED_TRANSITION_CHECKLIST,
+  AID_APPEAL_TASKS,
+  applicationChecklist,
+  matchesApplicationView,
+  portalCheckInfo,
+  requirementMatrix,
+  fourYearNetCost,
+  essayPromptWarnings,
+} from "./application-views.js";
 import { createPlanner } from "./planner.js";
 import {
   collegeCardMedia,
@@ -68,8 +81,11 @@ let route = location.hash.slice(1) || "home",
   missionFilter = "All",
   missionPhaseFilter = "All",
   appFilter = "All",
+  appTierFilter = "All",
+  appView = "List",
   appQuery = "",
   appSort = "added",
+  expandedApps = new Set(),
   taskView = "List",
   taskFilter = "All",
   taskPriority = "All",
@@ -194,11 +210,11 @@ const link = (label, url, cls = "text-link") =>
     ? `<a class="${cls}" href="${h(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${label}${icon("external")}</a>`
     : "";
 function badge(status) {
-  const cls = /Accepted|Submitted|Done|Confirmed|Complete/.test(status)
+  const cls = /Accepted|Enrolled|Submitted|Done|Confirmed|Complete|Likely/.test(status)
     ? "green"
-    : /Progress|Requested|Ready/.test(status)
+    : /Progress|Requested|Ready|Target/.test(status)
       ? "blue"
-      : /Waitlist|Planning/.test(status)
+      : /Waitlist|Planning|Reach/.test(status)
         ? "amber"
         : /Rejected|Overdue/.test(status)
           ? "red"
@@ -506,7 +522,8 @@ function filteredApps() {
     .filter(
       (a) =>
         matchesApplicationView(a, appFilter) &&
-        [a.name, a.major, a.round]
+        (appTierFilter === "All" || (appTierFilter === "Unassigned" ? !a.tier : a.tier === appTierFilter)) &&
+        [a.name, a.major, a.round, a.tier]
           .join(" ")
           .toLowerCase()
           .includes(appQuery.toLowerCase()),
@@ -518,12 +535,28 @@ function filteredApps() {
           ? (a.deadline || "9999").localeCompare(b.deadline || "9999")
           : appSort === "progress"
             ? progress(b) - progress(a)
-            : 0,
+            : appSort === "round"
+              ? (a.round || "zzzz").localeCompare(b.round || "zzzz") || a.name.localeCompare(b.name)
+              : appSort === "tier"
+                ? (TIERS.indexOf(a.tier) < 0 ? 99 : TIERS.indexOf(a.tier)) - (TIERS.indexOf(b.tier) < 0 ? 99 : TIERS.indexOf(b.tier)) || a.name.localeCompare(b.name)
+                : 0,
     );
+}
+function applicationMatrixTable(list) {
+  if (!list.length)
+    return empty(
+      "school",
+      "No matching applications for the matrix",
+      "Try clearing your filters or add an application first.",
+      btn("Reset filters", "reset-app-filters", "secondary", "arrow"),
+    );
+  const matrix = requirementMatrix(list, COMMON_REQUIREMENTS);
+  return `<div id="applications-results" role="tabpanel" aria-label="Cross-school requirement matrix" class="matrix-scroll"><table class="compare-table requirement-matrix-table"><thead><tr><th>COLLEGE</th>${matrix.columns.map((col) => `<th><span>${h(col)}</span><button class="text-link matrix-bulk-btn" data-action="matrix-complete-all:${h(col)}" title="Add & mark complete for all listed schools">All ✓</button></th>`).join("")}</tr></thead><tbody>${matrix.rows.map((row) => `<tr><th><a href="#application/${h(row.id)}">${h(row.name)}</a>${row.tier ? ` <small class="muted">· ${h(row.tier)}</small>` : ""}</th>${row.cells.map((cell) => `<td><button class="matrix-cell-btn ${cell.done ? "is-done" : cell.exists ? "is-open" : "is-missing"}" data-action="matrix-toggle:${h(row.id)}/${h(cell.column)}" aria-pressed="${cell.done}" aria-label="${h(row.name)} ${h(cell.column)}: ${cell.done ? "Complete" : cell.exists ? "Open" : "Add and complete"}">${cell.done ? "✓ Done" : cell.exists ? "○ Open" : "+ Add"}</button></td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 function applicationsTable(home = false) {
   let list = filteredApps();
   if (home) list = list.slice(0, 5);
+  if (!home && appView === "Matrix") return applicationMatrixTable(list);
   const panelAttributes = `id="${home ? "home-apps" : "applications"}-results" role="tabpanel" aria-label="${h(appFilter)} applications"`;
   if (!list.length)
     return `<div ${panelAttributes}>` + empty(
@@ -544,21 +577,27 @@ function applicationsTable(home = false) {
     ) + "</div>";
   return `<div ${panelAttributes} class="application-table"><div class="table-labels"><span>COLLEGE & CHECKLIST PROGRESS</span><span>INTENDED MAJOR</span><span>STATUS</span><span>DEADLINE / COMPLETED</span><span></span></div>${list.map((a) => {
     const checklist = applicationChecklist(a);
-    return `<div class="application-row"><a href="#application/${a.id}" class="college-cell">${monogram(a.name)}<span><strong>${h(a.name)}</strong><small>${h(a.round || "Round not set")}</small><span class="application-checklist ${checklist.complete ? "is-complete" : ""}"><span class="application-progress-label"><b>${checklist.percent}%</b><span>${checklist.total ? `${checklist.done}/${checklist.total} required${checklist.complete ? " · Complete" : ""}` : "No required items yet"}</span></span><progress class="application-progress-bar" value="${checklist.percent}" max="100" aria-label="${h(a.name)} required checklist progress">${checklist.percent}%</progress></span></span></a><span class="major-cell"><span>${h(a.major || "Major to explore")}</span></span><span>${badge(a.status)}</span><span class="deadline-cell">${checklist.complete ? `<small>Admissions complete</small><strong>${a.completionReportedAt ? dateLabel(a.completionReportedAt,true) : "Checklist complete"}</strong>` : a.deadline ? `<small class="${daysUntil(a.deadline) < 0 ? "danger-text" : ""}">${dueLabel(a.deadline)}</small><strong>${dateLabel(a.deadline, true)}</strong>` : "<small>Verify the official date</small><strong>No deadline set</strong>"}</span><span class="row-actions"><a class="icon-btn" aria-label="Open ${h(a.name)} workspace" href="#application/${a.id}">${icon("arrow")}</a>${ibtn("more", `Actions for ${a.name}`, `app-menu:${a.id}`)}</span></div>`;
+    const portal = portalCheckInfo(a);
+    const expanded = !home && expandedApps.has(a.id);
+    const openReqs = admissionsRequirements(a).filter((r) => !r.exempt);
+    return `<div class="application-row-group"><div class="application-row"><a href="#application/${a.id}" class="college-cell">${monogram(a.name)}<span><strong>${h(a.name)}</strong><small>${h(a.round || "Round not set")}${a.tier ? ` · ${h(a.tier)}` : ""}${portal.needsCheck ? ` · <em class="danger-text">Portal check due (${portal.daysAgo === null ? "never checked" : `${portal.daysAgo}d ago`})</em>` : portal.checkedAt ? ` · Portal verified ${dateLabel(portal.checkedAt)}` : ""}</small><span class="application-checklist ${checklist.complete ? "is-complete" : ""}"><span class="application-progress-label"><b>${checklist.percent}%</b><span>${checklist.total ? `${checklist.done}/${checklist.total} required${checklist.complete ? " · Complete" : ""}` : "No required items yet"}</span></span><progress class="application-progress-bar" value="${checklist.percent}" max="100" aria-label="${h(a.name)} required checklist progress">${checklist.percent}%</progress></span></span></a><span class="major-cell"><span>${h(a.major || "Major to explore")}</span></span><span>${badge(a.status)}</span><span class="deadline-cell">${checklist.complete ? `<small>Admissions complete</small><strong>${a.completionReportedAt ? dateLabel(a.completionReportedAt,true) : "Checklist complete"}</strong>` : a.deadline ? `<small class="${daysUntil(a.deadline) < 0 ? "danger-text" : ""}">${dueLabel(a.deadline)}</small><strong>${dateLabel(a.deadline, true)}</strong>` : "<small>Verify the official date</small><strong>No deadline set</strong>"}</span><span class="row-actions">${!home ? `<button class="icon-btn" aria-expanded="${expanded}" aria-label="Quick checklist for ${h(a.name)}" title="Quick checklist & status" data-action="toggle-app-expand:${a.id}">${icon("down")}</button>` : ""}${a.url && safeUrl(a.url) ? `<a class="icon-btn" aria-label="Open ${h(a.name)} portal" title="Open official portal" href="${h(safeUrl(a.url))}" target="_blank" rel="noopener noreferrer">${icon("external")}</a>` : ""}<a class="icon-btn" aria-label="Open ${h(a.name)} workspace" href="#application/${a.id}">${icon("arrow")}</a>${ibtn("more", `Actions for ${a.name}`, `app-menu:${a.id}`)}</span></div>${expanded ? `<div class="application-drawer"><div class="drawer-toolbar"><label class="inline-field"><span>Status</span><select data-app-quick-status="${a.id}" aria-label="Quick status for ${h(a.name)}">${STATUSES.map((s) => `<option ${s === a.status ? "selected" : ""}>${s}</option>`).join("")}</select></label><label class="inline-field"><span>Tier</span><select data-app-quick-tier="${a.id}" aria-label="Reach Target Likely tier for ${h(a.name)}"><option value="">Unassigned</option>${TIERS.map((t) => `<option ${t === a.tier ? "selected" : ""}>${t}</option>`).join("")}</select></label>${btn("Verified portal today", `portal-confirm:${a.id}`, "ghost", "check")}${a.url ? link("Open portal", a.url, "btn secondary") : ""}<a class="btn ghost" href="#application/${a.id}">Full workspace →</a></div><div class="drawer-checklist">${openReqs.length ? openReqs.map((r) => `<label class="drawer-req"><input type="checkbox" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""}><span class="${r.done ? "completed-text" : ""}">${h(r.title)}</span></label>`).join("") : `<span class="muted">No checklist items yet.</span> ${btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus")}`}</div></div>` : ""}</div>`;
   }).join("")}</div>${home && filteredApps().length > 5 ? '<a class="table-footer-link" href="#applications">View all applications ' + icon("arrow") + "</a>" : ""}`;
 }
 function applicationsPage() {
+  const tiersSummary = TIERS.map((t) => `${t}: ${activeApps().filter((a) => a.tier === t).length}`).join(" · ");
   return (
     header(
       "Applications",
       "One workspace for every school on your list.",
-      btn("Add application", "add-application", "primary", "plus"),
+      `<div class="button-group"><div class="view-switch" role="group" aria-label="Application view mode"><button data-action="app-view:List" class="${appView === "List" ? "selected" : ""}">${icon("tasks")}List</button><button data-action="app-view:Matrix" class="${appView === "Matrix" ? "selected" : ""}">${icon("compare")}Matrix</button></div>${btn("Add application", "add-application", "primary", "plus")}</div>`,
     ) +
-    `<section class="panel applications-list-panel">${filterTabs()}<p class="application-view-hint">Complete means every required item is done. Financial aid is tracked separately.</p><div class="toolbar"><label class="search-field">${icon("search")}<input id="app-search" placeholder="Find an application…" value="${h(appQuery)}" aria-label="Find an application"></label><select id="app-status" aria-label="Filter applications">${["All", ...STATUSES, "Complete", "Archived"].map((s) => `<option ${s === appFilter ? "selected" : ""}>${s}</option>`).join("")}</select><select id="app-sort" aria-label="Sort applications">${[
+    `<section class="panel applications-list-panel">${filterTabs()}<p class="application-view-hint">Complete means every required item is done. Financial aid is tracked separately. List balance: ${h(tiersSummary)}.</p><div class="toolbar"><label class="search-field">${icon("search")}<input id="app-search" placeholder="Find an application…" value="${h(appQuery)}" aria-label="Find an application"></label><select id="app-status" aria-label="Filter applications">${["All", ...STATUSES, "Complete", "Archived"].map((s) => `<option ${s === appFilter ? "selected" : ""}>${s}</option>`).join("")}</select><select id="app-tier" aria-label="Filter by tier">${[["All", "All tiers"], ...TIERS.map((t) => [t, t]), ["Unassigned", "No tier set"]].map(([v, label]) => `<option value="${v}" ${v === appTierFilter ? "selected" : ""}>${label}</option>`).join("")}</select><select id="app-sort" aria-label="Sort applications">${[
       ["added", "Added order"],
       ["name", "College name"],
       ["deadline", "Deadline"],
       ["progress", "Progress"],
+      ["round", "Application round"],
+      ["tier", "Tier (Reach / Target / Likely)"],
     ]
       .map(
         ([v, label]) =>
@@ -574,6 +613,7 @@ function addApplication(college = null, existing = null) {
     name: college?.name || "",
     major: state.profile.major,
     status: "Not Started",
+    tier: "",
     round: "Regular Decision",
     pathway: "Common Application",
     deadline: "",
@@ -590,7 +630,7 @@ function addApplication(college = null, existing = null) {
       .map((c) => `<option>${h(c.name)}</option>`)
       .join(
         "",
-      )}</datalist>${field("Intended major", "major", a.major, "text", 'maxlength="120"')}${select("Application status", "status", STATUSES, a.status)}${select("Application round", "round", ROUNDS, a.round)}${select("Application pathway", "pathway", PATHWAYS, a.pathway)}${field("Your deadline (verify with college)", "deadline", a.deadline, "date")}${field("Deadline time", "deadlineTime", a.deadlineTime, "time")}${select("Deadline time zone", "timezone", timezones(a.timezone), a.timezone)}${field("Official website / portal link", "url", a.url, "text", 'placeholder="https://…" maxlength="500"')}${textarea("Private notes", "notes", a.notes || "")}`,
+      )}</datalist>${field("Intended major", "major", a.major, "text", 'maxlength="120"')}${select("Application status", "status", STATUSES, a.status)}${select("Your list tier (personal fit)", "tier", [["", "Not assigned"], ...TIERS.map((t) => [t, t])], a.tier || "")}${select("Application round", "round", ROUNDS, a.round)}${select("Application pathway", "pathway", PATHWAYS, a.pathway)}${field("Your deadline (verify with college)", "deadline", a.deadline, "date")}${field("Deadline time", "deadlineTime", a.deadlineTime, "time")}${select("Deadline time zone", "timezone", timezones(a.timezone), a.timezone)}${field("Official website / portal link", "url", a.url, "text", 'placeholder="https://…" maxlength="500"')}${textarea("Private notes", "notes", a.notes || "")}`,
     (values) => {
       if (!validTimezone(values.timezone))
         throw new Error("Choose a valid time zone.");
@@ -658,14 +698,19 @@ function applicationWorkspace(id) {
       btn("View applications", "nav:applications"),
     );
   const p = progress(a);
-  return `<a class="back-link" href="#applications">${icon("arrow")}All applications</a><div class="workspace-heading">${monogram(a.name, "large")}<div><div class="eyebrow">${h(a.pathway || "YOUR COLLEGE WORKSPACE")}</div><h1>${h(a.name)}</h1><p>${h(a.major || "A major to explore")} <span>·</span> ${h(a.round)}</p></div>${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}</div><div class="workspace-summary"><span>${badge(a.status)}<small>Manually confirmed by you</small></span><span>${icon("calendar")}<strong>${dateLabel(a.deadline, true)}</strong><small>${a.deadline ? (a.deadlineTime ? h(`${a.deadlineTime} ${a.timezone || ""}`) : "Cutoff time not verified") : "Set your deadline in Edit application"}</small></span><span class="summary-progress"><strong>${p}% complete</strong><span class="progress-track"><i style="width:${p}%"></i></span><small>Admissions only · aid tracked separately</small></span></div>${a.completionReportedAt ? `<div class="info-note">${icon("check")}Admissions completed · reported by you ${dateLabel(a.completionReportedAt,true)}. School document receipts remain separately noted; aid lives in the top menu.</div>` : ""}<div class="workspace-tabs" role="tablist">${SECTIONS.map((t) => `<button role="tab" aria-selected="${workspaceTab === t}" class="${workspaceTab === t ? "selected" : ""}" data-action="workspace-tab:${t}">${t}</button>`).join("")}</div><section class="panel workspace-content">${workspaceBody(a)}</section>`;
+  const portal = portalCheckInfo(a);
+  return `<a class="back-link" href="#applications">${icon("arrow")}All applications</a><div class="workspace-heading">${monogram(a.name, "large")}<div><div class="eyebrow">${h(a.pathway || "YOUR COLLEGE WORKSPACE")}${a.tier ? ` · ${h(a.tier.toUpperCase())}` : ""}</div><h1>${h(a.name)}</h1><p>${h(a.major || "A major to explore")} <span>·</span> ${h(a.round)}</p></div><div class="button-group">${btn("Verified portal today", `portal-confirm:${id}`, "ghost", "check")}${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}</div></div><div class="workspace-summary"><span>${badge(a.status)}${a.tier ? ` ${badge(a.tier)}` : ""}<small>${portal.checkedAt ? `Portal checked ${dateLabel(portal.checkedAt, true)}` : "Portal check not recorded yet"}</small></span><span>${icon("calendar")}<strong>${dateLabel(a.deadline, true)}</strong><small>${a.deadline ? (a.deadlineTime ? h(`${a.deadlineTime} ${a.timezone || ""}`) : "Cutoff time not verified") : "Set your deadline in Edit application"}</small></span><span class="summary-progress"><strong>${p}% complete</strong><span class="progress-track"><i style="width:${p}%"></i></span><small>Admissions only · aid tracked separately</small></span></div>${a.completionReportedAt ? `<div class="info-note">${icon("check")}Admissions completed · reported by you ${dateLabel(a.completionReportedAt,true)}. School document receipts remain separately noted; aid lives in the top menu.</div>` : ""}<div class="workspace-tabs" role="tablist">${SECTIONS.map((t) => `<button role="tab" aria-selected="${workspaceTab === t}" class="${workspaceTab === t ? "selected" : ""}" data-action="workspace-tab:${t}">${t}</button>`).join("")}</div><section class="panel workspace-content">${workspaceBody(a)}</section>`;
 }
 function workspaceBody(a) {
+  const linkedPrompts = (state.prompts || []).filter((r) => !r.archived && r.applicationId === a.id);
+  const linkedReceipts = (state.receipts || []).filter((r) => !r.archived && r.applicationId === a.id);
+  const linkedInterviews = (state.interviewPractice || []).filter((r) => !r.archived && r.applicationId === a.id);
+  const portalTasks = (state.tasks || []).filter((t) => !t.archived && t.applicationId === a.id && t.category === "Portal setup");
   switch (workspaceTab) {
     case "Overview":
-      return `<div class="two-columns"><div><div class="panel-heading"><h2>A plan for ${h(a.name.split(" ")[0])}.</h2></div><p class="body-copy">Keep your requirements, writing, and next steps together. You decide what’s needed, and Ascend keeps track of your progress.</p><div class="detail-list"><div><span>Application round</span><strong>${h(a.round)}</strong></div><div><span>Application pathway</span><strong>${h(a.pathway)}</strong></div><div><span>Deadline</span><strong>${dateLabel(a.deadline, true)}</strong></div><div><span>Requirements completed</span><strong>${admissionsRequirements(a).filter((r) => r.done && !r.exempt).length} of ${admissionsRequirements(a).filter((r) => !r.exempt).length}</strong></div></div>${a.url ? link("Open official website", a.url, "btn secondary") : ""}</div><div class="soft-box"><span class="eyebrow">YOUR NEXT STEP</span><h3>${h(admissionsRequirements(a).find((r) => !r.done && !r.exempt)?.title || (applicationChecklist(a).complete ? "Admissions checklist complete." : "Make your own checklist."))}</h3><p>Requirements are personal to this application. Check the college’s official site before adding them.</p>${btn("Open requirements", "workspace-tab:Requirements", "secondary", "tasks")}<div class="info-note">${icon("shield")}Your changes here don’t submit anything to a college.</div></div></div>`;
+      return `<div class="two-columns"><div><div class="panel-heading"><h2>A plan for ${h(a.name.split(" ")[0])}.</h2></div><p class="body-copy">Keep your requirements, writing, and next steps together. You decide what’s needed, and Ascend keeps track of your progress.</p><div class="detail-list"><div><span>Application round</span><strong>${h(a.round)}</strong></div><div><span>List tier</span><strong>${h(a.tier || "Not assigned")}</strong></div><div><span>Application pathway</span><strong>${h(a.pathway)}</strong></div><div><span>Deadline</span><strong>${dateLabel(a.deadline, true)}</strong></div><div><span>Portal status</span><strong>${h(a.portalAccess?.status || "Not checked")}${a.portalAccess?.checkedAt ? ` (${dateLabel(a.portalAccess.checkedAt)})` : ""}</strong></div><div><span>Requirements completed</span><strong>${admissionsRequirements(a).filter((r) => r.done && !r.exempt).length} of ${admissionsRequirements(a).filter((r) => !r.exempt).length}</strong></div></div><div class="button-group">${a.url ? link("Open official website", a.url, "btn secondary") : ""}${btn("Verified portal today", `portal-confirm:${a.id}`, "ghost", "check")}</div></div><div class="soft-box"><span class="eyebrow">YOUR NEXT STEP</span><h3>${h(admissionsRequirements(a).find((r) => !r.done && !r.exempt)?.title || (applicationChecklist(a).complete ? "Admissions checklist complete." : "Make your own checklist."))}</h3><p>Requirements are personal to this application. Check the college’s official site before adding them.</p>${btn("Open requirements", "workspace-tab:Requirements", "secondary", "tasks")}<div class="info-note">${icon("shield")}Your changes here don’t submit anything to a college.</div></div></div><div class="workspace-hub-grid"><div class="soft-box"><div class="panel-heading"><h3>Portal & submission receipts (${linkedReceipts.length})</h3>${btn("Add receipt", `studio-add-for:receipts/${a.id}`, "ghost", "plus")}</div>${linkedReceipts.length ? linkedReceipts.map((r) => `<div class="record-row"><div><strong>${h(r.title)}</strong><small>${h(r.category || "Receipt")}${r.confirmation ? ` · Ref: ${h(r.confirmation)}` : ""}${r.date ? ` · ${dateLabel(r.date, true)}` : ""}</small></div>${ibtn("edit", "Edit receipt", `studio-edit:receipts/${r.id}`)}</div>`).join("") : `<p class="muted">Save confirmation numbers and portal verification dates here.</p>`}${portalTasks.length ? `<div class="portal-steps-mini"><strong>Portal setup tasks</strong>${portalTasks.map((t) => `<div class="record-row"><button class="task-check ${t.status === "Done" ? "checked" : ""}" data-action="complete-task:${t.id}" aria-label="Complete ${h(t.title)}">${t.status === "Done" ? icon("check") : ""}</button><span>${h(t.title)}</span></div>`).join("")}</div>` : ""}</div><div class="soft-box"><div class="panel-heading"><h3>Supplemental prompts & interviews</h3><div class="button-group">${btn("Add prompt", `studio-add-for:prompts/${a.id}`, "ghost", "plus")}${btn("Practice interview", `studio-add-for:interviewPractice/${a.id}`, "ghost", "plus")}</div></div>${linkedPrompts.map((p) => { const draft = state.essays.find((e) => e.id === p.essayId || e.promptId === p.id); const wc = draft ? words(draft.body) : 0; const over = Number(p.limit) > 0 && wc > Number(p.limit); return `<div class="record-row"><div><strong>${h(p.title)}</strong><small>${h(p.status || "Not Started")}${p.limit ? ` · ${wc}/${p.limit} words` : ""}${over ? ` · <b class="danger-text">${wc - Number(p.limit)} over limit</b>` : ""}</small></div>${draft ? btn("Open draft", `open-essay:${draft.id}`, "ghost") : btn("Write draft", `prompt-draft:${p.id}`, "ghost", "edit")}${ibtn("edit", "Edit prompt", `studio-edit:prompts/${p.id}`)}</div>`; }).join("")}${linkedInterviews.map((iv) => `<div class="record-row"><div><strong>${h(iv.title)}</strong><small>Interview prep · ${h(iv.question || "")}</small></div>${ibtn("edit", "Edit interview prep", `studio-edit:interviewPractice/${iv.id}`)}</div>`).join("")}${!linkedPrompts.length && !linkedInterviews.length ? `<p class="muted">Link supplemental essay prompts or STAR interview stories directly to ${h(a.name)}.</p>` : ""}</div></div>`;
     case "Requirements":
-      return `<div class="panel-heading"><div><h2>Application requirements</h2><p>${progress(a)}% of required weight complete. Financial aid, optional, and exempt items are excluded.</p></div><div class="button-group">${!a.requirements.length ? btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus") : ""}${btn("Add requirement", `add-requirement:${a.id}`, "secondary", "plus")}</div></div>${a.requirements.length ? `<div class="checklist">${admissionsRequirements(a).map((r) => `<div class="checklist-row"><input type="checkbox" aria-label="Complete ${h(r.title)}" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""} ${r.exempt ? "disabled" : ""}><div><strong class="${r.done ? "completed-text" : ""}">${h(r.title)}</strong><small>${r.exempt ? "Not applicable" : r.required === false ? "Optional" : `Required · weight ${r.weight || 1}`}${r.doneAt ? ` · Completed ${dateLabel(r.doneAt)}` : ""}${r.dependsOn ? ` · After ${h(a.requirements.find((x) => x.id === r.dependsOn)?.title || "removed item")}` : ""}</small></div>${ibtn("edit", "Edit requirement", `edit-requirement:${a.id}/${r.id}`)}${ibtn("trash", "Delete requirement", `delete-requirement:${a.id}/${r.id}`)}</div>`).join("")}</div>` : empty("tasks", "A checklist that fits your application.", "Add your own requirements or customize a starter checklist. Nothing is assumed to be required.")}`;
+      return `<div class="panel-heading"><div><h2>Application requirements</h2><p>${progress(a)}% of required weight complete. Financial aid, optional, and exempt items are excluded.</p></div><div class="button-group">${!a.requirements.length ? btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus") : ""}${btn("Add requirement", `add-requirement:${a.id}`, "secondary", "plus")}</div></div>${a.requirements.length ? `<div class="checklist">${admissionsRequirements(a).map((r) => `<div class="checklist-row"><input type="checkbox" aria-label="Complete ${h(r.title)}" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""} ${r.exempt ? "disabled" : ""}><div><strong class="${r.done ? "completed-text" : ""}">${h(r.title)}</strong><small>${r.exempt ? "Not applicable" : r.required === false ? "Optional" : `Required · weight ${r.weight || 1}`}${r.doneAt ? ` · Completed ${dateLabel(r.doneAt)}` : ""}${r.dependsOn ? ` · After ${h(a.requirements.find((x) => x.id === r.dependsOn)?.title || "removed item")}` : ""}</small></div>${ibtn("edit", "Edit requirement", `edit-requirement:${a.id}/${r.id}`)}${ibtn("trash", "Delete requirement", `delete-requirement:${a.id}/${r.id}`)}</div>`).join("")}</div>` : empty("tasks", "A checklist that fits your application.", "Add your own requirements or customize a starter checklist. Nothing is assumed to be required.")}${linkedReceipts.length ? `<div class="panel-heading"><h3>Saved submission receipts</h3>${btn("Add receipt", `studio-add-for:receipts/${a.id}`, "ghost", "plus")}</div><div class="records-list">${linkedReceipts.map((r) => `<div class="record-row"><div><strong>${h(r.title)}</strong><small>${h(r.category || "Submission")}${r.confirmation ? ` · Confirmation: ${h(r.confirmation)}` : ""}${r.date ? ` · ${dateLabel(r.date, true)}` : ""}</small></div>${ibtn("edit", "Edit receipt", `studio-edit:receipts/${r.id}`)}</div>`).join("")}</div>` : ""}`;
     case "Essays":
       return essayList(a.id);
     case "Recommendations":
@@ -676,8 +721,13 @@ function workspaceBody(a) {
       return recordsBody("financial-aid", a.id);
     case "Notes":
       return `<div class="panel-heading"><div><h2>Your thoughts, kept together.</h2><p>Private notes for this college. Changes save automatically.</p></div></div><textarea class="notes-editor" aria-label="College notes" data-app-notes="${a.id}" placeholder="Campus visit thoughts, questions, things that matter to you…">${h(a.notes || "")}</textarea>`;
-    case "Decision":
-      return `<div class="two-columns"><div><h2>The next chapter.</h2><p class="body-copy">Record a decision when you hear from the college. This is your personal record.</p><div class="detail-list"><div><span>Your recorded outcome</span>${badge(a.decision || "Not recorded")}</div><div><span>Decision date</span><strong>${dateLabel(a.decisionDate, true)}</strong></div></div>${btn("Record a decision", `record-decision:${a.id}`, "secondary", "edit")}</div><div class="soft-box"><span class="eyebrow">ROOM FOR EVERYTHING</span><h3>There’s more than one way forward.</h3><p>Every outcome is part of your story. Keep your options and financial aid offers together as you find your path.</p><a class="text-link" href="#financial-aid">View financial aid ${icon("arrow")}</a></div></div>`;
+    case "Decision": {
+      const schoolOffers = state.offers.filter((o) => o.applicationId === a.id);
+      const transitionTasks = state.tasks.filter((t) => !t.archived && t.applicationId === a.id && ["Admitted student", "Enrolled transition", "Financial aid appeal"].includes(t.category));
+      const isAccepted = ["Accepted", "Enrolled"].includes(a.status) || ["Accepted", "Enrolled"].includes(a.decision);
+      const isEnrolled = a.status === "Enrolled" || a.decision === "Enrolled";
+      return `<div class="two-columns"><div><h2>The next chapter.</h2><p class="body-copy">Record a decision when you hear from the college, compare 4-year net costs, and plan your admitted or enrolled transition.</p><div class="detail-list"><div><span>Your recorded outcome</span>${badge(a.decision || a.status || "Not recorded")}</div><div><span>Decision date</span><strong>${dateLabel(a.decisionDate, true)}</strong></div></div><div class="button-group">${btn("Record a decision", `record-decision:${a.id}`, "secondary", "edit")}${isAccepted && !isEnrolled ? btn("Mark as Enrolled", `enroll-application:${a.id}`, "primary", "check") : ""}</div></div><div class="soft-box"><span class="eyebrow">NEXT MILESTONES</span><h3>${isEnrolled ? "Enrolled freshman transition hub" : isAccepted ? "Admitted student & May 1 commitment" : "Financial aid & decision comparison"}</h3><p>${isEnrolled ? "Track final transcripts, health forms, placement tests, orientation, and move-in steps." : isAccepted ? "Compare aid packages, attend admitted student events, and track housing & deposit deadlines." : "Keep your financial aid offers and decision timeline together."}</p><div class="button-group">${btn("Add Admitted checklist", `seed-transition:${a.id}/admitted`, "secondary", "plus")}${btn("Add Enrolled freshman checklist", `seed-transition:${a.id}/enrolled`, "secondary", "plus")}${btn("Add Aid appeal steps", `seed-transition:${a.id}/appeal`, "ghost", "plus")}</div></div></div><div class="panel-heading"><div><h3>4-Year Net Cost & Aid Offer Breakdown</h3><p>Separates gift aid (grants & scholarships) from loans and work-study across four years.</p></div>${btn("Add aid offer", `add-offer:${a.id}`, "secondary", "plus")}</div>${schoolOffers.length ? `<div class="offer-grid">${schoolOffers.map((o) => { const c = fourYearNetCost(o); return `<article class="offer-card"><div class="eyebrow">${h(o.verification || "Estimate")} · ${h(o.year || "Annual")}</div><h3>${h(o.title || a.name)}</h3><div class="detail-list"><div><span>Annual cost of attendance</span><strong>${money(c.annualCoa)}</strong></div><div><span>Gift aid (grants + scholarships)</span><strong>− ${money(c.annualGiftAid)}</strong></div><div class="net-cost"><span>Net annual price (after gift aid)</span><strong>${money(c.annualNetPrice)}</strong></div><div class="net-cost"><span>Estimated 4-year net price</span><strong>${money(c.fourYearNetPrice)}</strong></div><div><span>Annual loans (repaid) & work-study</span><strong>${money(c.annualLoans)} loans · ${money(c.annualWorkStudy)} work</strong></div><div><span>Direct annual out-of-pocket</span><strong>${money(c.annualOutOfPocket)} (${money(c.fourYearOutOfPocket)} / 4 yrs)</strong></div></div><div class="button-group">${btn("Edit offer", `edit-offer:${o.id}`, "ghost", "edit")}</div></article>`; }).join("")}</div>` : `<p class="muted">No aid offers recorded for ${h(a.name)} yet.</p>`}${transitionTasks.length ? `<div class="panel-heading"><div><h3>Admitted, Enrolled & Aid Appeal Checklist</h3><p>${transitionTasks.filter((t) => t.status === "Done").length} of ${transitionTasks.length} steps complete</p></div></div><div class="records-list">${transitionTasks.map((t) => `<div class="record-row"><button class="task-check ${t.status === "Done" ? "checked" : ""}" data-action="complete-task:${t.id}" aria-label="Complete ${h(t.title)}">${t.status === "Done" ? icon("check") : ""}</button><div class="record-info"><strong>${h(t.title)}</strong><small>${h(t.category)}${t.due ? ` · ${dateLabel(t.due, true)}` : ""}</small></div>${ibtn("edit", "Edit step", `edit-task:${t.id}`)}</div>`).join("")}</div>` : ""}`;
+    }
   }
 }
 function requirementForm(app, id) {
@@ -1218,8 +1268,9 @@ function deadlineForm(date = "") {
   );
 }
 function essayList(applicationId) {
-  const list = state.essays.filter((e) => e.applicationId === applicationId);
-  return `<div class="panel-heading"><div><h2>Essays</h2><p>Drafts save locally as you write.</p></div>${btn("New essay", `add-essay:${applicationId}`, "secondary", "plus")}</div>${list.length ? list.map((e) => `<button class="record-row" data-action="open-essay:${e.id}">${icon("edit")}<span><strong>${h(e.title)}</strong><small>${words(e.body)} words · ${h(e.category)}</small></span>${icon("arrow")}</button>`).join("") : empty("edit", "Start with a few words.", "Create a draft and give your story a little space.")}`;
+  const list = state.essays.filter((e) => e.applicationId === applicationId || (state.prompts || []).some((p) => p.applicationId === applicationId && (p.essayId === e.id || e.promptId === p.id)));
+  const prompts = (state.prompts || []).filter((p) => p.applicationId === applicationId);
+  return `<div class="panel-heading"><div><h2>Essays & supplemental prompts</h2><p>Drafts save locally as you write. Reuse drafts across prompts and check word limits per school.</p></div><div class="button-group">${btn("Add prompt", `studio-add-for:prompts/${applicationId}`, "ghost", "plus")}${btn("New essay", `add-essay:${applicationId}`, "secondary", "plus")}</div></div>${prompts.length ? `<div class="workspace-list" style="margin-bottom:14px">${prompts.map((p) => { const linked = state.essays.find((e) => e.id === p.essayId || e.promptId === p.id); const over = linked && Number(p.limit) > 0 && words(linked.body) > Number(p.limit); return `<div class="record-row static"><div><strong>${h(p.title)}</strong><small>${h(p.category || "Supplement")}${p.limit ? ` · ${h(p.limit)} word limit` : ""}${linked ? ` · Linked: ${h(linked.title)} (${words(linked.body)} words)` : " · No draft linked"}</small>${p.body ? `<p class="muted" style="margin:4px 0 0">${h(p.body)}</p>` : ""}</div><div class="row-actions">${over ? badge("Over limit") : badge(p.status || "Not Started")}${linked ? btn("Open draft", `open-essay:${linked.id}`, "ghost", "edit") : btn("Start draft", `prompt-draft:${p.id}`, "ghost", "plus")}${ibtn("edit", "Edit prompt", `studio-edit:prompts/${p.id}`)}</div></div>`; }).join("")}</div>` : ""}${list.length ? list.map((e) => `<button class="record-row" data-action="open-essay:${e.id}">${icon("edit")}<span><strong>${h(e.title)}</strong><small>${words(e.body)} words · ${h(e.category)}</small></span>${icon("arrow")}</button>`).join("") : empty("edit", "Start with a few words.", "Create a draft and give your story a little space.")}`;
 }
 function essaysPage() {
   let list = state.essays.filter(
@@ -1233,6 +1284,7 @@ function essaysPage() {
   );
   if (!selectedEssay && list.length) selectedEssay = list[0].id;
   const selected = state.essays.find((e) => e.id === selectedEssay);
+  const reuseChecks = selected ? essayPromptWarnings(selected, state.prompts || [], state.applications) : [];
   return (
     header(
       "Essay studio",
@@ -1246,7 +1298,7 @@ function essaysPage() {
       )
       .join(
         "",
-      )}</select><div class="essay-list">${list.map((e) => `<button class="essay-item ${e.id === selectedEssay ? "selected" : ""}" data-action="select-essay:${e.id}">${icon("file")}<span><strong>${h(e.title)}</strong><small>${h(e.category)} · ${words(e.body)} words</small></span></button>`).join("") || '<p class="muted library-empty">Your next draft starts here.</p>'}</div></aside><div class="essay-main">${selected ? `<div class="editor-toolbar"><span id="save-state" class="local-label">${icon("shield")} Saved locally</span><div class="button-group">${ibtn("edit", "Edit essay details", `edit-essay:${selected.id}`)}${btn("Review", `extra-review:${selected.id}`, "ghost", "tasks")}${btn("Versions", `essay-versions:${selected.id}`, "ghost", "clock")}${btn("Export", `essay-export:${selected.id}`, "secondary", "download")}</div></div><div class="essay-paper"><span class="eyebrow">${h(selected.category)}</span><h2>${h(selected.title)}</h2>${selected.prompt ? `<p class="essay-prompt">${h(selected.prompt)}</p>` : ""}<textarea id="essay-editor" data-essay-id="${selected.id}" placeholder="Start anywhere. A memory, a moment, a sentence…" aria-label="Essay draft" spellcheck="true">${h(selected.body || "")}</textarea></div><div class="editor-footer"><span id="word-counter">${words(selected.body)}${selected.limit ? ` / ${selected.limit}` : ""} words · ${(selected.body || "").length} characters</span><span>${selected.limit && words(selected.body) > selected.limit ? "Over your word limit" : "Saved in this browser"}</span></div>` : empty("edit", "There’s a story only you can tell.", "Start a new essay. Your words stay in this browser.", btn("Create your first draft", "add-essay:", "secondary", "plus"))}</div></section>`
+      )}</select><div class="essay-list">${list.map((e) => `<button class="essay-item ${e.id === selectedEssay ? "selected" : ""}" data-action="select-essay:${e.id}">${icon("file")}<span><strong>${h(e.title)}</strong><small>${h(e.category)} · ${words(e.body)} words</small></span></button>`).join("") || '<p class="muted library-empty">Your next draft starts here.</p>'}</div></aside><div class="essay-main">${selected ? `<div class="editor-toolbar"><span id="save-state" class="local-label">${icon("shield")} Saved locally</span><div class="button-group">${ibtn("edit", "Edit essay details", `edit-essay:${selected.id}`)}${btn("Review", `extra-review:${selected.id}`, "ghost", "tasks")}${btn("Versions", `essay-versions:${selected.id}`, "ghost", "clock")}${btn("Export", `essay-export:${selected.id}`, "secondary", "download")}</div></div><div class="essay-paper"><span class="eyebrow">${h(selected.category)}</span><h2>${h(selected.title)}</h2>${selected.prompt ? `<p class="essay-prompt">${h(selected.prompt)}</p>` : ""}${reuseChecks.length ? `<div class="reuse-banner">${reuseChecks.map((w) => `<span class="badge ${w.overBy > 0 ? "coral" : "mint"}">${h(w.school)}: ${w.words}${w.limit ? `/${w.limit}` : ""}w${w.overBy > 0 ? ` (+${w.overBy} over)` : ""}</span>`).join("")}</div>` : ""}<textarea id="essay-editor" data-essay-id="${selected.id}" placeholder="Start anywhere. A memory, a moment, a sentence…" aria-label="Essay draft" spellcheck="true">${h(selected.body || "")}</textarea></div><div class="editor-footer"><span id="word-counter">${words(selected.body)}${selected.limit ? ` / ${selected.limit}` : ""} words · ${(selected.body || "").length} characters</span><span>${selected.limit && words(selected.body) > selected.limit ? "Over your word limit" : reuseChecks.some((w) => w.overBy > 0) ? "Over a linked school prompt limit" : "Saved in this browser"}</span></div>` : empty("edit", "There’s a story only you can tell.", "Start a new essay. Your words stay in this browser.", btn("Create your first draft", "add-essay:", "secondary", "plus"))}</div></section>`
   );
 }
 function essayCategories() {
@@ -1266,20 +1318,26 @@ function essayForm(id = "", applicationId = "") {
     title: "",
     category: "Personal statement",
     applicationId,
+    promptId: "",
     limit: 650,
     tags: "",
     prompt: "",
     body: "",
     versions: [],
   };
+  const promptOptions = `<label class="field"><span>Linked supplemental prompt (optional)</span><select name="promptId"><option value="">None</option>${(state.prompts || []).map((p) => `<option value="${p.id}" ${e.promptId === p.id ? "selected" : ""}>${h(p.title)}${p.applicationId ? ` · ${h(appName(p.applicationId))}` : ""}</option>`).join("")}</select></label>`;
   formDialog(
     id ? "Essay details" : "New essay",
-    `${field("Essay title", "title", e.title, "text", 'required maxlength="180"')}${select("Writing type", "category", essayCategories(), e.category)}${appSelect(e.applicationId)}${field("Word limit (optional)", "limit", e.limit, "number", 'min="1" max="20000"')}${field("Tags / folder", "tags", e.tags, "text", 'maxlength="200"')}${textarea("Prompt (verify with the application)", "prompt", e.prompt)}`,
+    `${field("Essay title", "title", e.title, "text", 'required maxlength="180"')}${select("Writing type", "category", essayCategories(), e.category)}${appSelect(e.applicationId)}${promptOptions}${field("Word limit (optional)", "limit", e.limit, "number", 'min="1" max="20000"')}${field("Tags / folder", "tags", e.tags, "text", 'maxlength="200"')}${textarea("Prompt (verify with the application)", "prompt", e.prompt)}`,
     (v) => {
       const r = id ? e : { ...e, id: uid() };
       const ok = mutate(
         () => {
           Object.assign(r, v, { updated: Date.now() });
+          if (v.promptId) {
+            const p = (state.prompts || []).find((x) => x.id === v.promptId);
+            if (p) p.essayId = r.id;
+          }
           if (!id) state.essays.push(r);
         },
         "Draft ready",
@@ -1630,15 +1688,12 @@ function recordForm(page, id = "", applicationId = "") {
   );
 }
 function offersSection() {
-  return `<section class="panel offers-panel"><div class="panel-heading"><div><h2>See the whole picture.</h2><p>Compare your own estimates and confirmed offers. Loans are borrowing; work-study is earned.</p></div>${btn("Add offer", "add-offer", "secondary", "plus")}</div>${
+  return `<section class="panel offers-panel"><div class="panel-heading"><div><h2>See the whole picture.</h2><p>Compare your own estimates and confirmed offers across 1 year and 4 years. Loans are borrowing; work-study is earned.</p></div>${btn("Add offer", "add-offer", "secondary", "plus")}</div>${
     state.offers.length
       ? `<div class="offer-grid">${state.offers
           .map((o) => {
-            const net =
-              Number(o.cost) -
-              Number(o.grants || 0) -
-              Number(o.scholarships || 0);
-            return `<article class="offer-card"><div class="eyebrow">${h(o.verification || "Estimate")} · ${h(o.year || "Year not set")}</div><h3>${h(state.applications.find((a) => a.id === o.applicationId)?.name || o.title || "College offer")}</h3><div class="detail-list"><div><span>Cost of attendance</span><strong>${money(o.cost)}</strong></div><div><span>Grants</span><strong>− ${money(o.grants || 0)}</strong></div><div><span>Scholarships</span><strong>− ${money(o.scholarships || 0)}</strong></div><div class="net-cost"><span>Net annual cost</span><strong>${money(net)}</strong></div><div><span>Loans offered (borrowed)</span><strong>${money(o.loans || 0)}</strong></div><div><span>Work-study (earned)</span><strong>${money(o.workstudy || 0)}</strong></div></div><div class="button-group">${btn("Edit", `edit-offer:${o.id}`, "ghost", "edit")}${ibtn("trash", "Delete offer", `delete-offer:${o.id}`)}</div></article>`;
+            const costCalc = fourYearNetCost(o);
+            return `<article class="offer-card"><div class="eyebrow">${h(o.verification || "Estimate")} · ${h(o.year || "Year not set")}</div><h3>${h(state.applications.find((a) => a.id === o.applicationId)?.name || o.title || "College offer")}</h3><div class="detail-list"><div><span>Cost of attendance</span><strong>${money(costCalc.annualCoa)}</strong></div><div><span>Gift aid (grants + scholarships)</span><strong>− ${money(costCalc.annualGiftAid)}</strong></div><div class="net-cost"><span>Net annual cost</span><strong>${money(costCalc.annualNetPrice)}</strong></div><div class="net-cost"><span>4-year net cost (est.)</span><strong>${money(costCalc.fourYearNetPrice)}</strong></div><div><span>Loans offered (borrowed)</span><strong>${money(costCalc.annualLoans)}/yr · ${money(costCalc.fourYearLoans)}/4yr</strong></div><div><span>Work-study (earned)</span><strong>${money(costCalc.annualWorkStudy)}/yr</strong></div><div><span>Out-of-pocket after loans/work</span><strong>${money(costCalc.annualOutOfPocket)}/yr</strong></div></div><div class="button-group">${btn("Edit", `edit-offer:${o.id}`, "ghost", "edit")}${ibtn("trash", "Delete offer", `delete-offer:${o.id}`)}</div></article>`;
           })
           .join("")}</div>`
       : empty(
@@ -1648,8 +1703,8 @@ function offersSection() {
         )
   }</section>`;
 }
-function offerForm(id) {
-  const o = state.offers.find((x) => x.id === id) || {};
+function offerForm(id = "", defaultAppId = "") {
+  const o = state.offers.find((x) => x.id === id) || { applicationId: defaultAppId };
   formDialog(
     id ? "Update financial aid offer" : "See the whole picture.",
     `${field("Offer label", "title", o.title, "text", 'required maxlength="120"')}${appSelect(o.applicationId)}${field("Academic year", "year", o.year || "2027–28")}${select("These figures are", "verification", ["Estimate", "Confirmed offer"], o.verification || "Estimate")}${field("Annual cost of attendance ($)", "cost", o.cost, "number", 'required min="0" step="0.01"')}${field("Annual grants ($)", "grants", o.grants || 0, "number", 'min="0" step="0.01"')}${field("Annual scholarships ($)", "scholarships", o.scholarships || 0, "number", 'min="0" step="0.01"')}${field("Loans offered ($)", "loans", o.loans || 0, "number", 'min="0" step="0.01"')}${field("Work-study offered ($)", "workstudy", o.workstudy || 0, "number", 'min="0" step="0.01"')}${textarea("Source / notes", "notes", o.notes)}`,
@@ -2168,8 +2223,69 @@ async function action(value, el) {
       render();
       document.querySelector(`.filter-tabs [data-action="app-filter:${CSS.escape(arg)}"]`)?.focus();
       break;
+    case "app-view":
+      appView = arg || "List";
+      render();
+      break;
+    case "toggle-app-expand":
+      if (expandedApps.has(id)) expandedApps.delete(id);
+      else expandedApps.add(id);
+      render();
+      break;
+    case "matrix-toggle": {
+      const a = state.applications.find((x) => x.id === id);
+      if (!a || !sub) break;
+      mutate(() => {
+        const norm = sub.trim().toLowerCase();
+        let req = (a.requirements || []).find((r) => String(r.title || "").trim().toLowerCase() === norm || String(r.title || "").trim().toLowerCase().includes(norm));
+        if (!req) {
+          req = {
+            id: uid(),
+            title: sub,
+            done: true,
+            doneAt: new Date().toISOString(),
+            required: true,
+            weight: 1,
+            exempt: false,
+            dependsOn: "",
+          };
+          a.requirements.push(req);
+        } else {
+          req.done = !req.done;
+          req.doneAt = req.done ? new Date().toISOString() : null;
+        }
+      }, "Matrix requirement updated");
+      break;
+    }
+    case "matrix-complete-all": {
+      if (!arg) break;
+      const apps = filteredApps();
+      mutate(() => {
+        const norm = arg.trim().toLowerCase();
+        for (const a of apps) {
+          let req = (a.requirements || []).find((r) => String(r.title || "").trim().toLowerCase() === norm || String(r.title || "").trim().toLowerCase().includes(norm));
+          if (!req) {
+            a.requirements.push({
+              id: uid(),
+              title: arg,
+              done: true,
+              doneAt: new Date().toISOString(),
+              required: true,
+              weight: 1,
+              exempt: false,
+              dependsOn: "",
+            });
+          } else if (!req.done && !req.exempt) {
+            req.done = true;
+            req.doneAt = new Date().toISOString();
+          }
+        }
+      }, `${arg} marked complete across ${apps.length} schools`);
+      break;
+    }
     case "reset-app-filters":
       appFilter = "All";
+      appTierFilter = "All";
       appQuery = "";
       render();
       document.querySelector('.filter-tabs [data-action="app-filter:All"]')?.focus();
@@ -2278,7 +2394,7 @@ async function action(value, el) {
       const a = state.applications.find((a) => a.id === id);
       formDialog(
         "A new chapter.",
-        `${select("Your confirmed decision", "decision", ["Accepted", "Waitlisted", "Rejected", "Withdrawn"], a.decision || "Accepted")}${field("Decision date", "decisionDate", a.decisionDate || today(), "date", "required")}${textarea("Notes about the decision", "decisionNotes", a.decisionNotes)}`,
+        `${select("Your confirmed decision", "decision", ["Accepted", "Enrolled", "Waitlisted", "Rejected", "Withdrawn"], a.decision || "Accepted")}${field("Decision date", "decisionDate", a.decisionDate || today(), "date", "required")}${textarea("Notes about the decision", "decisionNotes", a.decisionNotes)}`,
         (v) =>
           mutate(() => {
             Object.assign(a, v);
@@ -2289,6 +2405,87 @@ async function action(value, el) {
             });
           }, "Decision recorded"),
       );
+      break;
+    }
+    case "enroll-application": {
+      const a = state.applications.find((a) => a.id === id);
+      if (!a) break;
+      mutate(() => {
+        a.status = "Enrolled";
+        a.decision = "Enrolled";
+        a.decisionDate ||= today();
+        a.statusHistory.push({
+          status: "Enrolled",
+          at: new Date().toISOString(),
+        });
+      }, `Marked ${a.name} as Enrolled`);
+      break;
+    }
+    case "seed-transition": {
+      const a = state.applications.find((x) => x.id === id);
+      if (!a) break;
+      const templates =
+        sub === "enrolled"
+          ? ENROLLED_TRANSITION_CHECKLIST
+          : sub === "appeal"
+            ? AID_APPEAL_TASKS
+            : ADMITTED_CHECKLIST;
+      const category =
+        sub === "enrolled"
+          ? "Enrolled transition"
+          : sub === "appeal"
+            ? "Financial aid appeal"
+            : "Admitted student";
+      mutate(() => {
+        const existing = new Set(
+          state.tasks
+            .filter((t) => t.applicationId === a.id)
+            .map((t) => String(t.title || "").toLowerCase()),
+        );
+        for (const item of templates) {
+          const title = typeof item === "string" ? item : item.title;
+          if (existing.has(title.toLowerCase())) continue;
+          state.tasks.push({
+            id: uid(),
+            title,
+            applicationId: a.id,
+            category,
+            priority: "High",
+            status: "To do",
+            recurrence: "Never",
+            notes: typeof item === "object" && item.notes ? item.notes : "",
+            subtasks: [],
+          });
+        }
+      }, `${category} checklist added to tasks`);
+      break;
+    }
+    case "prompt-draft": {
+      const p = (state.prompts || []).find((x) => x.id === id);
+      if (!p) break;
+      let draftId = "";
+      mutate(() => {
+        const draft = {
+          id: uid(),
+          title: p.title || "Supplemental draft",
+          category: p.category || "Supplement",
+          applicationId: p.applicationId || "",
+          promptId: p.id,
+          limit: Number(p.limit) || 650,
+          tags: "",
+          prompt: p.body || "",
+          body: "",
+          updated: Date.now(),
+          versions: [],
+        };
+        state.essays.push(draft);
+        p.essayId = draft.id;
+        draftId = draft.id;
+      }, "Draft linked to prompt", false);
+      if (draftId) {
+        selectedEssay = draftId;
+        navigate("essays");
+      }
       break;
     }
     case "add-college":
@@ -2598,7 +2795,7 @@ async function action(value, el) {
       );
       break;
     case "add-offer":
-      offerForm();
+      offerForm("", arg);
       break;
     case "edit-offer":
       offerForm(id);
@@ -2937,6 +3134,7 @@ document.addEventListener("change", async (e) => {
   const el = e.target;
   const filters = {
     "app-status": (v) => (appFilter = v),
+    "app-tier": (v) => (appTierFilter = v),
     "app-sort": (v) => (appSort = v),
     "task-filter": (v) => (taskFilter = v),
     "task-priority": (v) => (taskPriority = v),
@@ -2945,6 +3143,25 @@ document.addEventListener("change", async (e) => {
     "directory-type": (v) => (directoryType = v),
     "essay-category": (v) => (essayCategory = v),
   };
+  if (el.dataset.appQuickStatus) {
+    const a = state.applications.find((x) => x.id === el.dataset.appQuickStatus);
+    if (a && el.value && a.status !== el.value) {
+      mutate(() => {
+        a.status = el.value;
+        a.statusHistory.push({ status: el.value, at: new Date().toISOString() });
+      }, `Status updated to ${el.value}`);
+    }
+    return;
+  }
+  if (el.dataset.appQuickTier) {
+    const a = state.applications.find((x) => x.id === el.dataset.appQuickTier);
+    if (a) {
+      mutate(() => {
+        a.tier = el.value;
+      }, el.value ? `Tier set to ${el.value}` : "Tier cleared");
+    }
+    return;
+  }
   if (el.dataset.directoryAdvanced) {
     directoryAdvanced[el.dataset.directoryAdvanced] = el.value;
     document.querySelector("#directory-results").innerHTML = directoryResults();

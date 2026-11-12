@@ -38,7 +38,7 @@ enum RecordSpec {
         let category = RecordField("category", "Category"), organization = RecordField("organization", "Organization")
         let generalStatus = RecordField("status", "Status", .choices(["Not Started", "In Progress", "Submitted", "Complete", "Not applicable"]))
         switch key {
-        case "applications": return [.init("major", "Major"), .init("status", "Status", .choices(AppOptions.statuses)), .init("round", "Round", .choices(AppOptions.rounds)), .init("pathway", "Pathway"), .init("deadline", "Deadline", .date), .init("deadlineTime", "Deadline time", .time), .init("timezone", "Time zone (IANA)"), url, notes]
+        case "applications": return [.init("major", "Major"), .init("status", "Status", .choices(AppOptions.statuses)), .init("tier", "Tier", .choices([""] + AppOptions.tiers)), .init("round", "Round", .choices(AppOptions.rounds)), .init("pathway", "Pathway"), .init("deadline", "Deadline", .date), .init("deadlineTime", "Deadline time", .time), .init("timezone", "Time zone (IANA)"), .init("decision", "Decision", .choices(["", "Accepted", "Enrolled", "Waitlisted", "Rejected", "Withdrawn"])), .init("decisionDate", "Decision date", .date), url, notes]
         case "tasks": return [.init("category", "Category", .choices(["Portal setup", "Application", "Essay", "Financial aid", "Recommendation", "Testing", "Personal", "Other"])), .init("status", "Status", .choices(["To do", "In Progress", "Done"])), .init("priority", "Priority", .choices(["High", "Medium", "Low"])), due, .init("time", "Time", .time), .init("timezone", "Time zone (IANA)"), .init("recurrence", "Repeat", .choices(["Never", "Daily", "Weekly", "Monthly"])), notes]
         case "essays": return [.init("category", "Writing type"), .init("tags", "Tags"), .init("prompt", "Prompt", .paragraph), .init("body", "Draft", .paragraph), .init("limit", "Word limit", .number), .init("status", "Status", .choices(["Not Started", "Drafting", "Revising", "Complete"])), due, notes]
         case "notes": return [.init("tags", "Tags"), .init("body", "Note", .paragraph)]
@@ -206,7 +206,17 @@ struct RecordDetail: View {
             }
             if collection == "essays" { essayReview }
             if collection == "offers" {
-                Panel { SectionHeading(title: "Your annual net cost", subtitle: entry.text("verification").isEmpty ? "Estimate" : entry.text("verification")); Text(entry.text("cost").isEmpty ? "Not recorded" : (entry.number("cost") - entry.number("grants") - entry.number("scholarships")).formatted(.currency(code: "USD"))).font(.appTitle.weight(.semibold)); Text("Cost of attendance minus grants and scholarships. Loans are borrowing; work-study must be earned. Verify figures with the college.").font(.appCaption).foregroundStyle(colors.muted) }
+                let annualNet = entry.number("cost") - entry.number("grants") - entry.number("scholarships")
+                let fourYearNet = annualNet * 4
+                let fourYearLoans = entry.number("loans") * 4
+                Panel {
+                    SectionHeading(title: "Your annual & 4-year net cost", subtitle: entry.text("verification").isEmpty ? "Estimate" : entry.text("verification"))
+                    Text(entry.text("cost").isEmpty ? "Not recorded" : annualNet.formatted(.currency(code: "USD")) + " / yr").font(.appTitle.weight(.semibold))
+                    if !entry.text("cost").isEmpty {
+                        Text("4-year net cost (est.): \(fourYearNet.formatted(.currency(code: "USD"))) · 4-year loans: \(fourYearLoans.formatted(.currency(code: "USD")))").font(.appBody.weight(.medium))
+                    }
+                    Text("Cost of attendance minus grants and scholarships. Loans are borrowing; work-study must be earned. Verify figures with the college.").font(.appCaption).foregroundStyle(colors.muted)
+                }
             }
             if entry.flag("archived") { Button("Restore record") { var e = entry; e.set("archived", false); store.save(collection, e) }.buttonStyle(.bordered) }
             else { Button("Archive record", role: .destructive) { store.archive(collection, id) }.font(.appBody) }

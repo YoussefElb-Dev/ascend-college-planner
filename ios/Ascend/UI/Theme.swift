@@ -162,6 +162,7 @@ struct TimeField: View {
 }
 
 enum AppOptions {
-    static let statuses = ["Considering", "Not Started", "In Progress", "Ready to Submit", "Submitted", "Awaiting Decision", "Accepted", "Waitlisted", "Rejected", "Withdrawn"]
+    static let statuses = ["Considering", "Not Started", "In Progress", "Ready to Submit", "Submitted", "Awaiting Decision", "Accepted", "Enrolled", "Waitlisted", "Rejected", "Withdrawn"]
     static let rounds = ["Regular Decision", "Early Action", "Early Decision", "Early Decision II", "Restrictive Early Action", "QuestBridge Match", "Rolling Admission", "Transfer", "Custom"]
+    static let tiers = ["Reach", "Target", "Likely"]
 }

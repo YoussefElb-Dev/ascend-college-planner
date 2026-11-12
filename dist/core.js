@@ -16,10 +16,12 @@ export const STATUSES = [
   "Submitted",
   "Awaiting Decision",
   "Accepted",
+  "Enrolled",
   "Waitlisted",
   "Rejected",
   "Withdrawn",
 ];
+export const TIERS = ["Reach", "Target", "Likely"];
 export const ROUNDS = [
   "Regular Decision",
   "Early Action",
@@ -224,7 +226,7 @@ export function validateState(value) {
       )
         throw new Error(`Invalid or duplicate ${key} record.`);
       ids.add(record.id);
-      for (const reference of ["applicationId", "collegeId", "dependsOn"])
+      for (const reference of ["applicationId", "collegeId", "dependsOn", "essayId", "promptId"])
         if (record[reference] && !validId(record[reference]))
           throw new Error(`Invalid ${key} association.`);
       for (const field of [
@@ -256,6 +258,11 @@ export function validateState(value) {
         "phone",
         "history",
         "level",
+        "tier",
+        "decision",
+        "decisionNotes",
+        "term",
+        "creditType",
       ])
         if (record[field] != null && typeof record[field] !== "string")
           throw new Error(`Invalid ${key} ${field}.`);

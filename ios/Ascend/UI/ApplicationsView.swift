@@ -49,15 +49,27 @@ struct ApplicationDetail: View {
     var body: some View {
         Page {
             VStack(alignment: .leading, spacing: 8) {
-                StatusPill(text: app.text("status"))
+                HStack(spacing: 6) {
+                    StatusPill(text: app.text("status"))
+                    if !app.text("tier").isEmpty { StatusPill(text: app.text("tier")) }
+                }
                 Text(app.title).font(.appTitle.weight(.semibold)).tracking(-0.8)
                 if !app.text("major").isEmpty { Text(app.text("major")).font(.appBody).foregroundStyle(colors.muted) }
                 if !app.text("round").isEmpty { Text(app.text("round")).font(.appCaption).foregroundStyle(colors.muted) }
             }
             HStack {
-                VStack(alignment: .leading, spacing: 6) { Text("DEADLINE").font(.appMicro.weight(.semibold)).tracking(1); Text(app.text("deadline").isEmpty ? "Not yet verified" : DateKey.label(app.text("deadline"))).font(.appHeadline); if !app.text("deadlineTime").isEmpty { Text(app.text("deadlineTime") + " " + app.text("timezone")).font(.appCaption).foregroundStyle(colors.muted) } }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("DEADLINE").font(.appMicro.weight(.semibold)).tracking(1)
+                    Text(app.text("deadline").isEmpty ? "Not yet verified" : DateKey.label(app.text("deadline"))).font(.appHeadline)
+                    if !app.text("deadlineTime").isEmpty { Text(app.text("deadlineTime") + " " + app.text("timezone")).font(.appCaption).foregroundStyle(colors.muted) }
+                    let checkedAt = app.fields["portalAccess"]?.object?["checkedAt"]?.text ?? ""
+                    Text(checkedAt.isEmpty ? "Portal status not yet verified" : "Portal verified \(DateKey.label(checkedAt))").font(.appCaption).foregroundStyle(colors.muted)
+                }
                 Spacer()
-                SafeLink(title: "Open portal", address: app.text("url"))
+                VStack(alignment: .trailing, spacing: 8) {
+                    SafeLink(title: "Open portal", address: app.text("url"))
+                    Button("Verified portal today") { verifyPortalToday() }.font(.appCaption.weight(.semibold)).buttonStyle(.bordered).buttonBorderShape(.capsule)
+                }
             }.padding(14).glassPanel()
             Panel {
                 HStack { SectionHeading(title: "Your checklist"); Spacer(); Text("\(Int(Workspace.progress(app) * 100))%").font(.appHeadline).monospacedDigit() }
@@ -84,9 +96,20 @@ struct ApplicationDetail: View {
             NavigationLink { FinancialAidView() } label: { Label("FAFSA, CSS & aid documents", systemImage: "leaf").font(.appHeadline) }.padding(14).glassPanel()
             if !linkedTasks.isEmpty { Panel { SectionHeading(title: "Tasks & portal setup"); ForEach(linkedTasks) { RecordRow(entry: $0, collection: "tasks") } } }
             if !app.text("notes").isEmpty { Panel { SectionHeading(title: "Application notes"); Text(app.text("notes")).font(.appBody).textSelection(.enabled) } }
-            ForEach(["essays", "notes", "recommendations", "offers"], id: \.self) { key in
+            ForEach(["essays", "prompts", "receipts", "interviewPractice", "notes", "recommendations", "offers"], id: \.self) { key in
                 let linked = store.workspace.records(key).filter { $0.text("applicationId") == id }
                 if !linked.isEmpty { Panel { SectionHeading(title: RecordSpec.title(key)); ForEach(linked) { RecordRow(entry: $0, collection: key) } } }
+            }
+            if ["Accepted", "Enrolled"].contains(app.text("status")) || ["Accepted", "Enrolled"].contains(app.text("decision")) {
+                Panel {
+                    SectionHeading(title: app.text("status") == "Enrolled" ? "Enrolled transition" : "Admitted student next steps", subtitle: "Seed checklist tasks for housing, transcripts, and orientation.")
+                    HStack {
+                        if app.text("status") != "Enrolled" {
+                            Button("Mark as Enrolled") { markEnrolled() }.buttonStyle(.borderedProminent).foregroundStyle(colors.onAccent).buttonBorderShape(.capsule)
+                        }
+                        Button(app.text("status") == "Enrolled" ? "Add freshman checklist" : "Add admitted checklist") { seedTransitionTasks(enrolled: app.text("status") == "Enrolled") }.buttonStyle(.bordered).buttonBorderShape(.capsule)
+                    }
+                }
             }
             if let college = CollegeDirectory.shared.record(app.text("collegeId"), workspace: store.workspace) { NavigationLink { CollegeDetail(college: college) } label: { Label("College profile & tuition", systemImage: "building.columns").font(.appBody.weight(.semibold)) } }
             Button { var t = RecordSpec.new("tasks"); t.set("applicationId", id); edit = EditTarget("tasks", t) } label: { Label("Add a task for this college", systemImage: "plus") }.buttonStyle(.bordered).buttonBorderShape(.capsule)
@@ -95,6 +118,36 @@ struct ApplicationDetail: View {
             .toolbar { Button("Edit") { edit = EditTarget("applications", app) } }
             .sheet(item: $edit) { EntryEditor($0) }
             .sheet(isPresented: $showRequirement) { requirementSheet }
+    }
+    private func verifyPortalToday() {
+        var a = app
+        a.fields["portalAccess"] = .object(["status": .string("Sign-in confirmed by you"), "checkedAt": .string(DateKey.today), "autofill": .string("User confirmed")])
+        store.save("applications", a)
+    }
+    private func markEnrolled() {
+        var a = app
+        a.set("status", "Enrolled")
+        a.set("decision", "Enrolled")
+        if a.text("decisionDate").isEmpty { a.set("decisionDate", DateKey.today) }
+        let history = Entry(["status": .string("Enrolled"), "at": .string(ISO8601DateFormatter().string(from: Date()))])
+        a.set("statusHistory", entries: a.entries("statusHistory") + [history])
+        store.save("applications", a)
+    }
+    private func seedTransitionTasks(enrolled: Bool) {
+        let titles = enrolled
+            ? ["Activate university email & SSO", "Submit enrollment & housing deposit", "Complete freshman housing & roommate form", "Register for orientation & advising", "Upload immunization & health insurance forms", "Request final official high school transcript", "Send AP / IB / dual-enrollment official scores"]
+            : ["Register for admitted student day or campus visit", "Compare net cost & financial aid offer", "Review housing options & roommate timeline", "Check enrollment deposit amount & May 1 deadline"]
+        let existing = Set(store.workspace.records("tasks").filter { $0.text("applicationId") == id }.map { $0.title.lowercased() })
+        _ = store.change { w in
+            for title in titles where !existing.contains(title.lowercased()) {
+                var t = RecordSpec.new("tasks")
+                t.set("title", title)
+                t.set("applicationId", id)
+                t.set("category", "Application")
+                t.set("priority", "High")
+                w.upsert("tasks", t)
+            }
+        }
     }
     private func updateRequirement(_ reqID: String, field: String, value: Bool) {
         var a = app; a.set("requirements", entries: a.entries("requirements").map { r in var q = r; if q.id == reqID { q.set(field, value) }; return q }); store.save("applications", a)

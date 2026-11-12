@@ -23,7 +23,7 @@ public enum StudyModel {
         let ranges: [String: [(String, Double, Double)]] = ["courses": [("credits",0,30),("gradePoints",0,4)], "assignments": [("minutes",0,1440)], "focusSessions": [("minutes",1,1440)], "prompts": [("limit",0,100000)], "interviewPractice": [("confidence",1,5)], "collegeScores": factors.map { ($0,1,5) }]
         for key in keys { for r in w.all(key) {
             guard case .string? = r.fields["title"] else { throw WorkspaceError.invalid("A studio record needs a title.") }
-            for field in ["teacher","schedule","course","question","situation","task","action","result","confirmation","wins","blockers","next"] {
+            for field in ["teacher","schedule","course","question","situation","task","action","result","confirmation","wins","blockers","next","term","creditType","essayId"] {
                 if let value=r.fields[field], value != .null { guard case .string = value else { throw WorkspaceError.invalid("Invalid \(field).") } }
             }
             for (field, lower, upper) in ranges[key] ?? [] where r.fields[field] != nil && r.fields[field] != .null {

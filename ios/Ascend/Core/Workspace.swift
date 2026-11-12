@@ -103,14 +103,14 @@ public struct Workspace: Equatable, Sendable {
         for key in ["favorites", "compare"] {
             for v in root[key]?.array ?? [] { guard Self.validID(v.text) else { try fail("Invalid saved college ID."); return } }
         }
-        let stringFields = ["title", "name", "body", "notes", "tags", "status", "category", "role", "contact", "url", "city", "state", "zip", "type", "folder", "organization", "description", "grades", "location", "questions", "reflection", "subject", "score", "target", "email", "phone", "history", "level"]
+        let stringFields = ["title", "name", "body", "notes", "tags", "status", "category", "role", "contact", "url", "city", "state", "zip", "type", "folder", "organization", "description", "grades", "location", "questions", "reflection", "subject", "score", "target", "email", "phone", "history", "level", "tier", "decision", "decisionNotes", "term", "creditType"]
         for key in (Self.required + Self.optional).filter({ !["favorites", "compare"].contains($0) }) {
             var ids = Set<String>()
             for value in root[key]?.array ?? [] {
                 guard case .object = value else { try fail("Invalid \(key) record."); return }
                 let r = Entry(value.object)
                 guard Self.validID(r.id), ids.insert(r.id).inserted else { try fail("Invalid or duplicate \(key) ID."); return }
-                for field in ["applicationId", "collegeId", "dependsOn"] where !r.text(field).isEmpty { guard Self.validID(r.text(field)) else { try fail("Invalid record association."); return } }
+                for field in ["applicationId", "collegeId", "dependsOn", "essayId", "promptId"] where !r.text(field).isEmpty { guard Self.validID(r.text(field)) else { try fail("Invalid record association."); return } }
                 for field in stringFields {
                     if let v = r.fields[field], v != .null { guard case .string = v else { try fail("Invalid \(key) \(field)."); return } }
                 }
