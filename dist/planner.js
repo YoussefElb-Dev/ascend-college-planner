@@ -42,6 +42,7 @@ export function createPlanner(ctx) {
     filter = "All",
     pendingImport = null,
     lastRoute = "",
+    needsDayScroll = false,
     noteTimer,
     noteWrite;
   const categories = [
@@ -174,7 +175,7 @@ export function createPlanner(ctx) {
         .join("") || "<small>No all-day events</small>"
     }</div></div>${Array.from({ length: 24 }, (_, i) => {
       const time = String(i).padStart(2, "0") + ":00";
-      return `<section class="hour-row"><button class="hour-label" data-action="planner-hour:${time}">${clock(time)}</button><div>${list
+      return `<section class="hour-row" data-hour="${i}"><button type="button" class="hour-label" data-action="planner-hour:${time}">${clock(time)}</button><div>${list
         .filter(
           (e) =>
             e.date === selected && e.time && Number(e.time.slice(0, 2)) === i,
@@ -187,6 +188,7 @@ export function createPlanner(ctx) {
     if (routeDate && routeDate !== lastRoute && validDate(routeDate)) {
       selected = routeDate;
       view = "Day";
+      needsDayScroll = true;
     }
     lastRoute = routeDate;
     const dates =
@@ -199,16 +201,28 @@ export function createPlanner(ctx) {
       start: dates[0],
       end: dates.at(-1),
     });
+    const fmtLocalDate = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const localEvents = all.map((e) => {
         if (e.personal || !e.time) return e;
         try {
           const d = wallTimeToDate(e.date, e.time, e.zone || zone());
-          const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          const date = fmtLocalDate(d);
+          let endDate = date;
+          let endTime = e.endTime || "";
+          if (e.endDate && e.endDate !== e.date) {
+            const ed = wallTimeToDate(e.endDate, e.endTime || e.time, e.zone || zone());
+            endDate = fmtLocalDate(ed);
+            if (e.endTime) {
+              endTime = `${String(ed.getHours()).padStart(2, "0")}:${String(ed.getMinutes()).padStart(2, "0")}`;
+            }
+          }
           return {
             ...e,
             date,
-            endDate: date,
+            endDate,
             time: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+            ...(endTime ? { endTime } : {}),
           };
         } catch {
           return e;
@@ -239,23 +253,47 @@ export function createPlanner(ctx) {
       `<div class="planner-summary"><span><i class="legend-dot personal"></i>Personal events</span><span><i class="legend-dot college"></i>College commitments</span><span class="planner-timezone">Times shown in ${h(zone())}</span></div><div class="schedule-layout"><section class="panel calendar-panel"><div class="schedule-toolbar"><div class="calendar-period">${ibtn("chevron", "Previous period", "planner-move:-1")}<h2>${h(period)}</h2>${ibtn("chevron", "Next period", "planner-move:1")}${btn("Today", "planner-today", "ghost")}</div><div class="view-switch" aria-label="Calendar zoom">${["Month", "Week", "Day"].map((v) => `<button data-action="planner-view:${v}" class="${v === view ? "selected" : ""}" aria-pressed="${v === view}">${v}</button>`).join("")}</div></div><div class="schedule-filters"><label>Jump to date <input type="date" id="planner-jump" value="${selected}" aria-label="Jump to date"></label><label>Show <select id="planner-filter" aria-label="Calendar event filter">${["All", "Personal", "College"].map((v) => `<option ${v === filter ? "selected" : ""}>${v}</option>`).join("")}</select></label><button data-action="planner-archived" class="text-link">Archived / canceled</button></div>${view === "Month" ? month(events) : view === "Week" ? week(events) : day(events)}${all.warnings?.length ? `<details class="calendar-warnings"><summary>Calendar notices (${all.warnings.length})</summary>${all.warnings.map((s) => `<p>${h(s)}</p>`).join("")}</details>` : ""}</section>${dayPanel(events)}</div>`
     );
   }
+  function syncEventFormFields(form) {
+    if (!form) return;
+    const allDay = Boolean(form.querySelector("[data-all-day]")?.checked);
+    const timeWrap = form.querySelector(".event-time-fields");
+    if (timeWrap) {
+      timeWrap.hidden = allDay;
+      timeWrap
+        .querySelectorAll("input,select,textarea")
+        .forEach((el) => (el.disabled = allDay));
+    }
+    const repeatVal = form.querySelector("[data-planner-repeat]")?.value || "None";
+    const hideRepeat = repeatVal === "None" || repeatVal === "Imported";
+    const repeatWrap = form.querySelector(".repeat-controls");
+    if (repeatWrap) {
+      repeatWrap.hidden = hideRepeat;
+      repeatWrap
+        .querySelectorAll("input,select,textarea")
+        .forEach((el) => (el.disabled = hideRepeat));
+    }
+  }
   function eventForm(id = "", date = selected, time = "") {
     const old = getState().events.find((e) => e.id === id);
+    const startHour = time ? Number(time.slice(0, 2)) : 17;
     const r = old || {
       date,
       endDate: date,
       time: time || "17:00",
       endTime: time
-        ? `${String(Math.min(23, Number(time.slice(0, 2)) + 1)).padStart(2, "0")}:${time.slice(3)}`
+        ? startHour >= 23
+          ? "23:59"
+          : `${String(startHour + 1).padStart(2, "0")}:${time.slice(3)}`
         : "18:00",
       allDay: !time,
       timezone: zone(),
       category: "Personal",
       repeat: "None",
     };
+    const hideRepeat = !r.repeat || r.repeat === "None" || r.repeat === "Imported";
     formDialog(
       old ? "Edit event" : "Add an event",
-      `${r.repeat === "Imported" ? '<p class="info-note full">Changes apply to this repeating series. Its imported schedule stays the same unless you choose a different repeat option.</p>' : ""}${r.recurrenceId ? '<p class="info-note full">This is one exception in a repeating series.</p>' : ""}${field("Event title", "title", r.title, "text", 'required maxlength="180" placeholder="Volleyball game, class, appointment…"')}${select("Category", "category", [...new Set([...categories, r.category || "Personal"])], r.category)}${field("Start date", "date", r.date, "date", "required")}${field("End date (inclusive)", "endDate", r.endDate || r.date, "date", "required")}<label class="check-label full"><input type="checkbox" name="allDay" data-all-day ${r.allDay ? "checked" : ""}>All-day event</label><div class="event-time-fields full" ${r.allDay ? "hidden" : ""}>${field("Start time", "time", r.time || "17:00", "time")}${field("End time", "endTime", r.endTime || "18:00", "time")}${field("Time zone (IANA name)", "timezone", r.timezone || zone(), "text", 'required maxlength="100" placeholder="America/New_York"')}<small>Use an IANA zone, UTC, or floating. Your planner displays timed events in your device’s time zone.</small></div>${field("Location / meeting link", "location", r.location, "text", 'maxlength="1000"')}${select("Status", "status", ["Planned", "Canceled"], r.status || "Planned")}${select("Repeat", "repeat", r.repeat === "Imported" ? ["Imported", "None", "Daily", "Weekly", "Monthly", "Yearly"] : ["None", "Daily", "Weekly", "Monthly", "Yearly"], r.repeat || "None", "data-planner-repeat")}<div class="repeat-controls full" ${r.repeat === "Imported" ? "hidden" : ""}>${field("Repeat every (interval)", "repeatInterval", r.repeatInterval || 1, "number", 'min="1" max="365" step="1" required')}${field("Repeat until (optional)", "repeatUntil", r.repeatUntil, "date")}</div>${textarea("Notes and details", "notes", r.notes, 'maxlength="15000" placeholder="Bring your uniform, goals for the day, travel details…"')}${old ? `<div class="full event-form-tools">${btn(r.archived ? "Restore event" : "Archive event", `planner-archive:${id}`, "ghost", "archive")}<small>For repeats, editing or archiving applies to the entire series.</small></div>` : ""}`,
+      `${r.repeat === "Imported" ? '<p class="info-note full">Changes apply to this repeating series. Its imported schedule stays the same unless you choose a different repeat option.</p>' : ""}${r.recurrenceId ? '<p class="info-note full">This is one exception in a repeating series.</p>' : ""}${field("Event title", "title", r.title, "text", 'required maxlength="180" placeholder="Volleyball game, class, appointment…"')}${select("Category", "category", [...new Set([...categories, r.category || "Personal"])], r.category)}${field("Start date", "date", r.date, "date", "required")}${field("End date (inclusive)", "endDate", r.endDate || r.date, "date", "required")}<label class="check-label full"><input type="checkbox" name="allDay" data-all-day ${r.allDay ? "checked" : ""}>All-day event</label><div class="event-time-fields full" ${r.allDay ? "hidden" : ""}>${field("Start time", "time", r.time || "17:00", "time")}${field("End time", "endTime", r.endTime || "18:00", "time")}${field("Time zone (IANA name)", "timezone", r.timezone || zone(), "text", 'required maxlength="100" placeholder="America/New_York"')}<small>Use an IANA zone, UTC, or floating. Your planner displays timed events in your device’s time zone.</small></div>${field("Location / meeting link", "location", r.location, "text", 'maxlength="1000"')}${select("Status", "status", ["Planned", "Canceled"], r.status || "Planned")}${select("Repeat", "repeat", r.repeat === "Imported" ? ["Imported", "None", "Daily", "Weekly", "Monthly", "Yearly"] : ["None", "Daily", "Weekly", "Monthly", "Yearly"], r.repeat || "None", "data-planner-repeat")}<div class="repeat-controls full" ${hideRepeat ? "hidden" : ""}>${field("Repeat every (interval)", "repeatInterval", r.repeatInterval || 1, "number", 'min="1" max="365" step="1" required')}${field("Repeat until (optional)", "repeatUntil", r.repeatUntil, "date")}</div>${textarea("Notes and details", "notes", r.notes, 'maxlength="15000" placeholder="Bring your uniform, goals for the day, travel details…"')}${old ? `<div class="full event-form-tools">${btn(r.archived ? "Restore event" : "Archive event", `planner-archive:${id}`, "ghost", "archive")}<small>For repeats, editing or archiving applies to the entire series.</small></div>` : ""}`,
       (v) => {
         if (!validDate(v.date) || !validDate(v.endDate) || v.endDate < v.date)
           throw Error("Choose valid dates with the end on or after the start.");
@@ -269,7 +307,7 @@ export function createPlanner(ctx) {
           throw Error("Set an end time on or after the start time.");
         if (v.repeatUntil && v.repeatUntil < v.date)
           throw Error("Repeat until must be on or after the start date.");
-        const tz = v.timezone || zone();
+        const tz = allDay ? (r.timezone || zone()) : (v.timezone || zone());
         if (!["floating", "UTC"].includes(tz)) {
           try {
             new Intl.DateTimeFormat("en", { timeZone: tz });
@@ -287,7 +325,8 @@ export function createPlanner(ctx) {
           timezone: tz,
           time: allDay ? "" : v.time,
           endTime: allDay ? "" : v.endTime,
-          repeatInterval: Number(v.repeatInterval),
+          repeatInterval: v.repeatInterval ? Number(v.repeatInterval) : (Number(r.repeatInterval) || 1),
+          repeatUntil: v.repeatUntil ?? (v.repeat === "None" ? "" : r.repeatUntil || ""),
           id: id || uid(),
           created: r.created || Date.now(),
           updated: Date.now(),
@@ -306,6 +345,7 @@ export function createPlanner(ctx) {
       "Save event",
       true,
     );
+    syncEventFormFields(document.querySelector("#dialogs form[data-form]"));
   }
   function syncDialog() {
     dialog(
@@ -337,21 +377,43 @@ export function createPlanner(ctx) {
       true,
     );
   }
+  function openArchivedDialog() {
+    const items = getState().events.filter(
+      (r) => r.archived || r.status === "Canceled",
+    );
+    dialog(
+      `<div class="dialog-heading"><h2>Archived & canceled events</h2>${ibtn("x", "Close dialog", "close-dialog")}</div><div class="calendar-sync">${
+        items
+          .map(
+            (r) =>
+              `<div class="archived-event"><div><strong>${h(r.title)}</strong><small>${dateLabel(r.date, true)} · ${r.archived ? "Archived" : "Canceled"}${r.recurrenceId ? " · Single occurrence" : ""}</small></div>${r.archived ? btn("Restore", `planner-archive:${r.id}`, "secondary") : btn("Edit", `planner-edit:${r.id}`, "secondary")}</div>`,
+          )
+          .join("") || "<p>No archived or canceled events.</p>"
+      }</div>`,
+    );
+  }
   async function handle(key, arg) {
     if (!key.startsWith("planner-")) return false;
     if (!flushNotes()) return true;
     switch (key) {
       case "planner-view":
         view = arg;
+        if (view === "Day") needsDayScroll = true;
         render();
         break;
       case "planner-select":
         selected = arg;
         render();
+        if (window.innerWidth <= 760) {
+          document
+            .querySelector(".day-detail")
+            ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
         break;
       case "planner-day":
         selected = arg;
         view = "Day";
+        needsDayScroll = true;
         render();
         break;
       case "planner-move":
@@ -359,10 +421,12 @@ export function createPlanner(ctx) {
           view === "Month"
             ? changeMonth(selected, Number(arg))
             : shiftDate(selected, Number(arg) * (view === "Week" ? 7 : 1));
+        if (view === "Day") needsDayScroll = true;
         render();
         break;
       case "planner-today":
         selected = today();
+        if (view === "Day") needsDayScroll = true;
         render();
         break;
       case "planner-add":
@@ -375,6 +439,7 @@ export function createPlanner(ctx) {
         eventForm(arg);
         break;
       case "planner-archive": {
+        const fromArchivedList = Boolean(document.querySelector("#dialogs .archived-event"));
         const r = getState().events.find((e) => e.id === arg);
         if (r) {
           const archived = !r.archived;
@@ -392,26 +457,18 @@ export function createPlanner(ctx) {
               },
               archived ? "Event archived." : "Event restored.",
             )
-          )
-            closeDialog();
+          ) {
+            if (fromArchivedList && getState().events.some((e) => e.archived || e.status === "Canceled")) {
+              openArchivedDialog();
+            } else {
+              closeDialog();
+            }
+          }
         }
         break;
       }
       case "planner-archived":
-        dialog(
-          `<div class="dialog-heading"><h2>Archived & canceled events</h2>${ibtn("x", "Close dialog", "close-dialog")}</div><div class="calendar-sync">${
-            getState()
-              .events.filter(
-                (r) =>
-                  (r.archived || r.status === "Canceled") && !r.recurrenceId,
-              )
-              .map(
-                (r) =>
-                  `<div class="archived-event"><strong>${h(r.title)}</strong>${r.archived ? btn("Restore", `planner-archive:${r.id}`, "secondary") : btn("Edit", `planner-edit:${r.id}`, "secondary")}</div>`,
-              )
-              .join("") || "<p>No archived or canceled events.</p>"
-          }</div>`,
-        );
+        openArchivedDialog();
         break;
       case "planner-sync":
         syncDialog();
@@ -452,12 +509,10 @@ export function createPlanner(ctx) {
   }
   document.addEventListener("change", async (e) => {
     const el = e.target;
-    if (el.matches("[data-planner-repeat]"))
-      el.closest("form").querySelector(".repeat-controls").hidden =
-        el.value === "Imported";
-    if (el.matches("[data-all-day]"))
-      el.closest("form").querySelector(".event-time-fields").hidden =
-        el.checked;
+    if (!(el instanceof Element)) return;
+    if (el.matches("[data-planner-repeat], [data-all-day]")) {
+      syncEventFormFields(el.closest("form"));
+    }
     if (el.id === "planner-jump" && validDate(el.value)) {
       flushNotes();
       selected = el.value;
@@ -481,7 +536,7 @@ export function createPlanner(ctx) {
     }
   });
   document.addEventListener("input", (e) => {
-    if (!e.target.matches("[data-planner-note]")) return;
+    if (!(e.target instanceof Element) || !e.target.matches("[data-planner-note]")) return;
     const el = e.target,
       date = el.dataset.plannerNote,
       value = el.value,
@@ -510,7 +565,23 @@ export function createPlanner(ctx) {
     if (noteTimer) clearTimeout(noteTimer);
     noteTimer = setTimeout(flushNotes, 300);
   });
+  function afterRender() {
+    if (view !== "Day" || !needsDayScroll) return;
+    needsDayScroll = false;
+    const scroller = document.querySelector(".schedule-day");
+    if (!scroller) return;
+    const firstWithEvent = [...scroller.querySelectorAll(".hour-row[data-hour]")].find(
+      (row) => row.querySelector(".schedule-event"),
+    );
+    const targetHour = firstWithEvent
+      ? Math.max(0, Number(firstWithEvent.dataset.hour) - 1)
+      : selected === today()
+        ? Math.max(7, new Date().getHours() - 1)
+        : 8;
+    const targetRow = scroller.querySelector(`.hour-row[data-hour="${targetHour}"]`);
+    if (targetRow) scroller.scrollTop = Math.max(0, targetRow.offsetTop - 8);
+  }
   window.addEventListener("pagehide", flushNotes);
   window.addEventListener("hashchange", flushNotes);
-  return { page, handle, flushNotes };
+  return { page, handle, flushNotes, afterRender };
 }

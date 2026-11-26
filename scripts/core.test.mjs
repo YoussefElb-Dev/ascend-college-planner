@@ -14,6 +14,7 @@ import {
   fuzzyMatch,
   safeUrl,
   words,
+  money,
 } from "../dist/core.js";
 import { makeDocx } from "../dist/exports.js";
 test("workspace survives a complete local-storage save and reload, including private documents", () => {
@@ -183,4 +184,16 @@ test("shipped app contains no external runtime dependencies or data-service SDKs
       /fetch\(['"]https?:|supabase|firebase|sendBeacon|XMLHttpRequest|WebSocket/,
     );
   }
+});
+test("money formatting handles missing, non-finite, whole-dollar, and cent amounts safely", () => {
+  assert.equal(money(undefined), "Not available");
+  assert.equal(money(null), "Not available");
+  assert.equal(money(""), "Not available");
+  assert.equal(money("abc"), "Not available");
+  assert.equal(money(NaN), "Not available");
+  assert.equal(money(Infinity), "Not available");
+  assert.equal(money(0), "$0");
+  assert.equal(money(50000), "$50,000");
+  assert.equal(money(75.5), "$75.50");
+  assert.equal(money(1234.56), "$1,234.56");
 });

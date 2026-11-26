@@ -95,7 +95,6 @@ input:focus,select:focus,textarea:focus { border-color:var(--blue)!important; ou
 .calendar-panel,.planner-day,.essay-editor,.editor-panel { background:var(--surface); }
 .calendar-period h2 { font-size:17px; } .month-grid .day-number { font-size:12px; }
 .badge { font-size:10px; } .tool-symbol { border-radius:8px; box-shadow:none; }
-.dialog { background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 24px 90px #0002; backdrop-filter:none; }
 .privacy-screen { background:var(--sidebar-bg); } .privacy-screen form { background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 16px 60px #17283f08; }
 .privacy-screen h1 { font-size:26px; } .privacy-screen .btn { min-height:43px; }
 .sidebar-backdrop { display:none; }

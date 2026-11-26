@@ -7,7 +7,8 @@ let cache = {},
   observer,
   active = 0;
 const queue = [],
-  pending = new Set();
+  pending = new Set(),
+  failed = new Set();
 try {
   cache = JSON.parse(localStorage.getItem(CACHE) || "{}");
   if (!cache || typeof cache !== "object" || Array.isArray(cache)) cache = {};
@@ -71,8 +72,9 @@ export function collegeSummary(c) {
 }
 function credit(v) {
   const p = checkedPhoto(v?.photo);
+  const artist = p?.artist?.replace(/\s*\([^)]*\)\s*$/, "").trim().slice(0, 70) || p?.artist?.slice(0, 70) || "Wikimedia Commons";
   return p
-    ? `${external("Photo: " + (p.artist?.split("(")[0].slice(0, 70) || "Wikimedia Commons"), p.page)} · ${external(p.license, p.licenseUrl)}`
+    ? `${external("Photo: " + artist, p.page)} · ${external(p.license, p.licenseUrl)}`
     : "Campus photo unavailable";
 }
 function imageHTML(c, v, hero = false) {
@@ -84,19 +86,21 @@ function imageHTML(c, v, hero = false) {
 export function collegeCardMedia(c) {
   colleges.set(c.id, c);
   const v = known(c);
-  return `<div class="campus-photo" data-college-media="${c.id}">${imageHTML(c, v)}</div><p class="college-description" data-college-description="${c.id}">${h(v?.description || collegeSummary(c))}</p><div class="college-description-credit" data-college-credit="${c.id}">${v?.article ? `${external("Wikipedia", v.article)} · ${external("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/")}` : "NCES/IPEDS"}</div><div class="college-mini-facts"><div><small>Tuition & fees · 2025–26</small><strong>${money(c.tuitionOut ?? c.tuitionIn)}</strong></div><div><small>Undergraduates · 2024</small><strong>${c.enrollment != null ? Number(c.enrollment).toLocaleString() : "Not available"}</strong></div></div>`;
+  const id = h(c.id);
+  return `<div class="campus-photo" data-college-media="${id}">${imageHTML(c, v)}</div><p class="college-description" data-college-description="${id}">${h(v?.description || collegeSummary(c))}</p><div class="college-description-credit" data-college-credit="${id}">${v?.article ? `${external("Wikipedia", v.article)} · ${external("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/")}` : "NCES/IPEDS"}</div><div class="college-mini-facts"><div><small>Tuition & fees · 2025–26</small><strong>${money(c.tuitionOut ?? c.tuitionIn)}</strong></div><div><small>Undergraduates · 2024</small><strong>${c.enrollment != null ? Number(c.enrollment).toLocaleString() : "Not available"}</strong></div></div>`;
 }
 export function collegeHero(c) {
   colleges.set(c.id, c);
-  return `<div class="campus-photo campus-hero" data-college-media="${c.id}" data-hero="true">${imageHTML(c, known(c), true)}</div>`;
+  return `<div class="campus-photo campus-hero" data-college-media="${h(c.id)}" data-hero="true">${imageHTML(c, known(c), true)}</div>`;
 }
 export function collegeAbout(c) {
   const v = known(c);
-  return `<div class="college-about" data-college-description="${c.id}">${h(v?.description || collegeSummary(c))}</div><div class="college-description-credit" data-college-credit="${c.id}">${v?.article ? `${external("Description: Wikipedia", v.article)} · ${external("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/")}` : "Description based on the bundled NCES/IPEDS directory."}</div>`;
+  const id = h(c.id);
+  return `<div class="college-about" data-college-description="${id}">${h(v?.description || collegeSummary(c))}</div><div class="college-description-credit" data-college-credit="${id}">${v?.article ? `${external("Description: Wikipedia", v.article)} · ${external("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/")}` : "Description based on the bundled NCES/IPEDS directory."}</div>`;
 }
 export function collegeCredits(c) {
   const v = known(c);
-  return `<div data-college-full-credit="${c.id}">${credit(v)}${v?.article ? `<p>${external("Read the source article on Wikipedia", v.article)} · CC BY-SA 4.0. Descriptions may be shortened for display.</p>` : ""}</div>`;
+  return `<div data-college-full-credit="${h(c.id)}">${credit(v)}${v?.article ? `<p>${external("Read the source article on Wikipedia", v.article)} · CC BY-SA 4.0. Descriptions may be shortened for display.</p>` : ""}</div>`;
 }
 async function api(host, params) {
   const u = new URL(`https://${host}/w/api.php`);
@@ -207,27 +211,42 @@ async function enrich(c) {
     fetched: Date.now(),
   };
 }
+function bindMediaImage(el) {
+  const img = el.querySelector("img");
+  if (!img || img.dataset.boundError) return;
+  img.dataset.boundError = "1";
+  const showFallback = () => {
+    img.hidden = true;
+    const fb = el.querySelector(".campus-image-fallback");
+    if (fb) fb.hidden = false;
+    const cr = el.querySelector(".campus-photo-credit");
+    if (cr) cr.hidden = true;
+  };
+  if (img.complete && img.naturalWidth === 0) {
+    showFallback();
+  } else {
+    img.addEventListener("error", showFallback, { once: true });
+  }
+}
 function patch(c) {
   const v = known(c);
-  document.querySelectorAll(`[data-college-media="${c.id}"]`).forEach((el) => {
+  const selId = CSS.escape(c.id);
+  document.querySelectorAll(`[data-college-media="${selId}"]`).forEach((el) => {
     el.innerHTML = imageHTML(c, v, el.dataset.hero === "true");
-    el.querySelector("img")?.addEventListener("error", () => {
-      el.querySelector("img").hidden = true;
-      el.querySelector(".campus-image-fallback").hidden = false;
-    });
+    bindMediaImage(el);
   });
   document
-    .querySelectorAll(`[data-college-description="${c.id}"]`)
+    .querySelectorAll(`[data-college-description="${selId}"]`)
     .forEach((el) => {
       el.textContent = v?.description || collegeSummary(c);
     });
-  document.querySelectorAll(`[data-college-credit="${c.id}"]`).forEach((el) => {
+  document.querySelectorAll(`[data-college-credit="${selId}"]`).forEach((el) => {
     el.innerHTML = v?.article
       ? `${external("Description: Wikipedia", v.article)} · ${external("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/")}`
       : "Description based on NCES/IPEDS data.";
   });
   document
-    .querySelectorAll(`[data-college-full-credit="${c.id}"]`)
+    .querySelectorAll(`[data-college-full-credit="${selId}"]`)
     .forEach((el) => {
       el.innerHTML =
         credit(v) +
@@ -253,7 +272,9 @@ function pump() {
           /* Public metadata is optional. */
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        failed.add(c.id);
+      })
       .finally(() => {
         patch(c);
         active--;
@@ -263,6 +284,7 @@ function pump() {
   }
 }
 export async function hydrateCollegeMedia() {
+  queue.length = 0;
   if (!ready) {
     try {
       const r = await fetch("./data/college-media.json");
@@ -278,10 +300,15 @@ export async function hydrateCollegeMedia() {
           observer.unobserve(e.target);
           const c = colleges.get(e.target.dataset.collegeMedia);
           if (!c) continue;
-          patch(c);
           const v = known(c);
-          if (v && (seed[c.id] || Date.now() - v.fetched < THIRTY_DAYS))
+          if (v && (seed[c.id] || Date.now() - v.fetched < THIRTY_DAYS)) {
+            if (e.target.querySelector(".campus-placeholder")) patch(c);
             continue;
+          }
+          if (failed.has(c.id)) {
+            patch(c);
+            continue;
+          }
           if (!pending.has(c.id)) {
             pending.add(c.id);
             queue.push(c);
@@ -293,11 +320,13 @@ export async function hydrateCollegeMedia() {
   );
   document.querySelectorAll("[data-college-media]").forEach((el) => {
     const c = colleges.get(el.dataset.collegeMedia);
-    if (c && known(c)) patch(c);
-    el.querySelector("img")?.addEventListener("error", () => {
-      el.querySelector("img").hidden = true;
-      el.querySelector(".campus-image-fallback").hidden = false;
-    });
-    observer.observe(el);
+    const v = c ? known(c) : null;
+    const isFresh = Boolean(v && (seed[c.id] || Date.now() - v.fetched < THIRTY_DAYS));
+    if (c && v && el.querySelector(".campus-placeholder")) {
+      patch(c);
+    } else {
+      bindMediaImage(el);
+    }
+    if (!isFresh) observer.observe(el);
   });
 }

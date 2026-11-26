@@ -211,3 +211,21 @@ test("duration-based events gain an editable end and malformed negative ranges a
     ),
   );
 });
+test("floating timed recurring events keep floating UNTIL without UTC Z suffix", () => {
+  const text = calendarFile([
+    {
+      id: "float1",
+      title: "Study block",
+      date: "2026-10-23",
+      endDate: "2026-10-23",
+      time: "17:00",
+      endTime: "18:00",
+      allDay: false,
+      timezone: "floating",
+      repeat: "Weekly",
+      repeatInterval: 1,
+      repeatUntil: "2026-11-20",
+    },
+  ]);
+  assert.match(text, /RRULE:FREQ=WEEKLY;UNTIL=20261120T235959\r?\n/);
+});

@@ -7,7 +7,7 @@ export function createDeviceSync(ctx){
  const storage='ascend.sync.connection.v1',accountStorage='ascend.sync.account.v1';
  let config=null,legacy=null,busy=false,pending=null,status='Connecting your workspace…',enabled=true,account={configured:false,authenticated:false},initializing=false;
  try{const old=JSON.parse(localStorage.getItem(storage)||'null');if(old)legacy={owner:old.owner,repo:old.repo,baseline:old.baseline,sha:old.sha,lastSync:old.lastSync};}catch{}
- const refresh=()=>{for(const el of document.querySelectorAll('[data-sync-status]'))el.textContent=status;if(!initializing&&location.hash==='#sync'&&!document.querySelector('dialog[open]'))ctx.render();};
+ const refresh=(force=false)=>{for(const el of document.querySelectorAll('[data-sync-status]'))el.textContent=status;const editing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'');if(!initializing&&!document.querySelector('dialog[open]')&&(location.hash==='#sync'||(force&&!editing)))ctx.render();};
  function persist(){const {owner,repo,baseline,sha,lastSync}=config;localStorage.setItem(accountStorage,JSON.stringify({owner,repo,baseline,sha,lastSync}));localStorage.removeItem(storage);legacy=null;}
  async function connectAccount(){
   account=await accountSession(true);
@@ -20,7 +20,7 @@ export function createDeviceSync(ctx){
  }
  async function sync(choice=''){
   if(busy||!enabled||ctx.isLocked())return;
-  busy=true;status='Syncing your workspace…';refresh();
+  busy=true;let pulled=false;status='Syncing your workspace…';refresh();
   try{
    if(!config)await connectAccount();
    if(!config)return;
@@ -34,14 +34,14 @@ export function createDeviceSync(ctx){
     if(decision==='pull'){
      if(await fingerprint(ctx.getState())!==localHash){status='New local edits detected. Sync again.';return;}
      if(!ctx.applyRemote(remote.workspace))throw Error('The cloud workspace could not be saved locally. Your current copy is preserved.');
-     config.baseline=remoteHash;config.sha=remote.sha;
+     config.baseline=remoteHash;config.sha=remote.sha;pulled=true;
     }else if(decision==='push'){config.sha=await api.write(local,remote.sha);config.baseline=localHash;}
     else{config.baseline=localHash;config.sha=remote.sha;}
     pending=null;
    }
    config.lastSync=new Date().toISOString();persist();status='Up to date';
   }catch(e){status=navigator.onLine===false?'Offline · edits are saved here and will sync when you reconnect.':e.message||'Sync failed. Your saved workspace is preserved.';if(e.status===409||e.status===422)pending={retry:true};}
-  finally{busy=false;refresh();}
+  finally{busy=false;refresh(pulled);}
  }
  async function initialize(){initializing=true;try{await connectAccount();await sync();}catch(e){status=e.message||'Your saved copy is available. Reconnect from Device sync.';}finally{initializing=false;}}
  function page(){

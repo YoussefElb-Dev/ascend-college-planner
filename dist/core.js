@@ -95,14 +95,18 @@ export const escapeHTML = (v) =>
         c
       ],
   );
-export const money = (v) =>
-  v === undefined || v === null || v === ""
-    ? "Not available"
-    : new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 0,
-      }).format(Number(v));
+export const money = (v) => {
+  if (v === undefined || v === null || v === "") return "Not available";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "Not available";
+  const hasCents = !Number.isInteger(n);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  }).format(n);
+};
 export const words = (v) =>
   String(v || "")
     .trim()
@@ -528,7 +532,7 @@ export function calendarEvents(s, range = {}) {
               : key === "aid"
                 ? aidCategory(r)==="FAFSA"?"fafsa":aidCategory(r)==="CSS Profile"?"css-profile":"financial-aid"
                 : key === "goals"
-                  ? "planner"
+                  ? "goals"
                   : key,
         });
   const personal = expandPersonalEvents(

@@ -4,6 +4,8 @@ export function isAidRequirement(item = {}) {
   return /\bfafsa\b|\bcss\b|financial[ -]aid|\baid documents?\b|\baid requirements?\b|\bpfaa\b|\bidoc\b|tax return|tax documents?|non.tax.filer|\bw-?2\b/i.test(`${item.category || ""} ${item.title || ""}`);
 }
 export function aidCategory(item = {}) {
+  if (item.category === "FAFSA" || item.category === "CSS Profile") return item.category;
+  if (["Institution form", "Financial aid document", "Other"].includes(item.category)) return "Other";
   const text = `${item.category || ""} ${item.title || ""}`;
   if (/\bfafsa\b/i.test(text) && !/\bcss\b/i.test(text)) return "FAFSA";
   if (/\bcss\b/i.test(text) && !/\bfafsa\b/i.test(text)) return "CSS Profile";
@@ -15,7 +17,7 @@ export function admissionsRequirements(app = {}) {
 export function aidRecords(state, category) {
   const records = (state.aid || []).filter(item => !category || aidCategory(item) === category);
   const migrated = new Set(records.map(item => item.sourceRequirementId).filter(Boolean));
-  const legacy = (state.applications || []).flatMap(app => (app.requirements || [])
+  const legacy = (state.applications || []).filter(app => !app.archived).flatMap(app => (app.requirements || [])
     .filter(item => isAidRequirement(item) && !migrated.has(item.id) && (!category || aidCategory(item) === category))
     .map(item => ({...item, applicationId:app.id, legacy:true, status:item.done ? "Complete" : "Not Started"})));
   return [...records, ...legacy];

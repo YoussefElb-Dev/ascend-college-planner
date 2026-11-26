@@ -128,7 +128,7 @@ test("new calendar sources exclude archived, completed and canceled events", () 
     events.map((e) => e.id),
     ["goal", "visit"],
   );
-  assert.equal(events[0].target, "planner");
+  assert.equal(events[0].target, "goals");
   assert.ok(toICS(events).includes("SUMMARY:Visit"));
 });
 test("essay insights handle blanks, repeated words, paragraphs, and over-limit drafts", () => {

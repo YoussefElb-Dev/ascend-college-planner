@@ -140,7 +140,7 @@ export function homePage({ state, btn, badge, filterTabs, applicationsTable }) {
           .slice(0, 4)
           .map(
             (e) =>
-              `<a class="upcoming-item" href="#${e.target}"><span class="date-tile"><small>${new Date(e.date + "T12:00:00").toLocaleDateString(undefined, { month: "short" })}</small><strong>${Number(e.date.slice(8))}</strong></span><div><strong>${h(e.title)}</strong><small>${h(e.kind)}${e.time ? ` · ${h(e.time)}` : ""}</small></div><span class="due-pill">${daysUntil(e.date) === 0 ? "Today" : `${daysUntil(e.date)}d`}</span>${icon("arrow")}</a>`,
+              `<a class="upcoming-item" href="#${e.target}"><span class="date-tile"><small>${new Date(e.date + "T12:00:00").toLocaleDateString(undefined, { month: "short" })}</small><strong>${Number(e.date.slice(8, 10))}</strong></span><div><strong>${h(e.title)}</strong><small>${h(e.kind)}${e.time ? ` · ${h(e.time)}` : ""}</small></div><span class="due-pill">${daysUntil(e.date) === 0 ? "Today" : `${daysUntil(e.date)}d`}</span>${icon("arrow")}</a>`,
           )
           .join("")
       : `<div class="compact-empty upcoming-empty"><span class="tool-symbol blue">${icon("calendar")}</span><div><strong>Nothing on the calendar yet</strong><p>Add a deadline, visit, exam, or task to see it here.</p></div>${btn("Add deadline", "add-deadline", "ghost", "plus")}</div>`

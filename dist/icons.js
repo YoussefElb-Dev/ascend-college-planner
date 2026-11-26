@@ -56,5 +56,7 @@ const paths = {
     '<path d="M12 2c1.2 6.8 3.2 8.8 10 10-6.8 1.2-8.8 3.2-10 10-1.2-6.8-3.2-8.8-10-10C8.8 10.8 10.8 8.8 12 2Z"/>',
 };
 export function icon(name, cls = "") {
-  return `<svg class="icon ${cls}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.file}</svg>`;
+  const safeCls = String(cls || "").replace(/["'<>]/g, "");
+  const body = Object.hasOwn(paths, name) ? paths[name] : paths.file;
+  return `<svg class="icon ${safeCls}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }

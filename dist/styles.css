@@ -48,7 +48,7 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 button,
 input,
@@ -374,7 +374,7 @@ button:active:not(:disabled),
 main {
   max-width: 1280px;
   margin: 0 auto;
-  min-height: calc(100vh - 210px);
+  min-height: calc(100dvh - 210px);
   padding-bottom: 25px;
   outline: 0;
 }
@@ -1417,7 +1417,7 @@ input[type="range"] {
   font-size: 13px;
 }
 .danger-text {
-  color: #b86d78 !important;
+  color: #b54b5e;
 }
 .event-row {
   display: flex;
@@ -1680,8 +1680,8 @@ input[type="range"] {
   height: 15px;
 }
 .bulk-check {
-  width: 13px !important;
-  height: 13px !important;
+  width: 18px;
+  height: 18px;
 }
 .task-check {
   border: 1px solid #cdd4e1;
@@ -2102,7 +2102,7 @@ input[type="range"] {
 }
 .document-preview {
   max-width: 100%;
-  max-height: 65vh;
+  max-height: 65dvh;
   display: block;
   margin: 20px auto;
   border-radius: 12px;
@@ -2110,7 +2110,7 @@ input[type="range"] {
 .text-preview {
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 60vh;
+  max-height: 60dvh;
   overflow: auto;
   font-size: 12px;
   line-height: 1.8;
@@ -2556,7 +2556,7 @@ dialog::backdrop {
     12px/1.9 "Plus Jakarta Sans",
     Arial,
     sans-serif;
-  max-height: 60vh;
+  max-height: 60dvh;
   overflow: auto;
 }
 .command-input {
@@ -2587,7 +2587,7 @@ dialog::backdrop {
   border-radius: 5px;
 }
 .command-results {
-  max-height: 55vh;
+  max-height: 55dvh;
   overflow: auto;
   margin: 14px -8px;
 }
@@ -2652,8 +2652,12 @@ dialog::backdrop {
 }
 #toasts {
   position: fixed;
-  bottom: 25px;
-  left: 50%;
+  inset: auto auto 25px 50%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
   transform: translateX(-50%);
   z-index: 200;
   display: flex;
@@ -2662,6 +2666,9 @@ dialog::backdrop {
   gap: 9px;
   max-width: calc(100vw - 30px);
   pointer-events: none;
+}
+#toasts[popover]:not(:popover-open) {
+  display: none;
 }
 .toast {
   background: var(--text);
@@ -2785,8 +2792,9 @@ dialog::backdrop {
   color: #d1b675;
 }
 [data-theme="dark"] .toast {
-  background: #e0e7f3;
-  color: #172136;
+  background: var(--surface-solid);
+  color: var(--text);
+  border-color: var(--border);
 }
 @media (min-width: 1600px) {
   .topbar {
@@ -3717,8 +3725,8 @@ dialog::backdrop {
     height: 17px;
   }
   .bulk-check {
-    width: 12px !important;
-    height: 12px !important;
+    width: 18px;
+    height: 18px;
   }
   .bulk-toolbar {
     flex-wrap: wrap;
@@ -4154,7 +4162,7 @@ dialog::backdrop {
     gap: 15px;
   }
   .version-compare pre {
-    max-height: 30vh;
+    max-height: 30dvh;
     font-size: 12px;
   }
   .toast {
@@ -4250,13 +4258,18 @@ dialog::backdrop {
     color: black !important;
   }
   .atmosphere,
-  #app,
   #dialogs,
   #toasts,
   .skip-link {
     display: none !important;
   }
-  #print-root {
+  body.printing-export #app {
+    display: none !important;
+  }
+  #print-root:empty {
+    display: none !important;
+  }
+  body.printing-export #print-root {
     display: block !important;
     padding: 30px;
     color: black;

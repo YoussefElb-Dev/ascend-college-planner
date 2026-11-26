@@ -39,3 +39,16 @@ test("CSS filing statistics distinguish completed submission, duplicate recipien
  const before=structuredClone(state),summary=cssSubmissionSummary(state);assert.equal(summary.submitted,true);assert.equal(summary.schools.length,2);assert.equal(summary.received,1);assert.equal(summary.date,'2026-10-30');assert.deepEqual(state,before);
  state.aid[0].status='In Progress';assert.equal(cssSubmissionSummary(state).submitted,false);
 });
+test("explicit aid categories keep records in place and archived apps are excluded from legacy aid", () => {
+  assert.equal(aidCategory({ category: "Other", title: "FAFSA verification" }), "Other");
+  assert.equal(aidCategory({ category: "Institution form", title: "CSS addendum" }), "Other");
+  assert.equal(aidCategory({ category: "FAFSA", title: "CSS note" }), "FAFSA");
+  const state = {
+    aid: [],
+    applications: [
+      { id: "active", archived: false, requirements: [{ id: "r1", title: "FAFSA", done: false }] },
+      { id: "old", archived: true, requirements: [{ id: "r2", title: "FAFSA", done: true }] },
+    ],
+  };
+  assert.deepEqual(aidRecords(state, "FAFSA").map((r) => r.applicationId), ["active"]);
+});

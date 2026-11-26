@@ -40,10 +40,16 @@ export function createExtras(ctx) {
       currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(Number(v) || 0);
+    }).format(Number.isFinite(Number(v)) ? Number(v) : 0);
+  const clock = (t) => {
+    if (!t || !/^\d{2}:\d{2}/.test(t)) return t || "";
+    const [a, b] = t.split(":").map(Number);
+    return `${a % 12 || 12}:${String(b).padStart(2, "0")} ${a < 12 ? "AM" : "PM"}`;
+  };
   let weekOffset = 0,
-    showArchived = false,
+    showArchivedByKey = {},
     lastPage = "";
+  const isShowingArchived = (key) => Boolean(showArchivedByKey[key]);
   const config = {
     activities: {
       name: "Activities",
@@ -112,9 +118,19 @@ export function createExtras(ctx) {
   const college = (r) =>
     state().applications.find((a) => a.id === r.applicationId)?.name || "";
   const active = (key) =>
-    collection(key).filter((r) => (showArchived ? !!r.archived : !r.archived));
+    collection(key).filter((r) => (isShowingArchived(key) ? !!r.archived : !r.archived));
   const tools = (key, r) =>
     `${ibtn("edit", `Edit ${r.title}`, `extra-form:${key}/${r.id}`)}${ibtn(r.archived ? "plus" : "archive", r.archived ? "Restore record" : "Archive record", `extra-archive:${key}/${r.id}`)}`;
+  function updateCharCount(el) {
+    if (!el?.dataset?.characterCount) return;
+    let counter = el.parentElement.querySelector(".character-count");
+    if (!counter) {
+      counter = document.createElement("small");
+      counter.className = "character-count";
+      el.after(counter);
+    }
+    counter.textContent = `${el.value.length} characters · ${words(el.value)} words`;
+  }
   function form(key, id = "") {
     const c = config[key];
     if (!c) return;
@@ -139,18 +155,23 @@ export function createExtras(ctx) {
       "Save",
       true,
     );
+    document
+      .querySelectorAll("#dialogs [data-character-count]")
+      .forEach(updateCharCount);
   }
   function toolbar(key) {
-    return `<div class="toolbar"><span class="muted">${active(key).length} ${showArchived ? "archived " : ""}${active(key).length === 1 ? "record" : "records"}</span><div class="button-group">${btn(showArchived ? "Show active" : "Show archived", "extra-archived", "ghost", "archive")}${btn("Export CSV", `extra-csv:${key}`, "ghost", "download")}</div></div>`;
+    const showingArchived = isShowingArchived(key);
+    return `<div class="toolbar"><span class="muted">${active(key).length} ${showingArchived ? "archived " : ""}${active(key).length === 1 ? "record" : "records"}</span><div class="button-group">${btn(showingArchived ? "Show active" : "Show archived", `extra-archived:${key}`, "ghost", "archive")}${btn("Export CSV", `extra-csv:${key}`, "ghost", "download")}</div></div>`;
   }
   function cards(key) {
     const c = config[key],
-      list = active(key);
+      list = active(key),
+      showingArchived = isShowingArchived(key);
     return list.length
       ? `<div class="collection-grid">${list
           .map(
-            (r) =>
-              `<article class="collection-card"><div class="collection-heading"><span class="tool-symbol ${key === "visits" ? "lavender" : "blue"}">${icon(c.icon)}</span><div class="button-group">${tools(key, r)}</div></div><div class="eyebrow">${h(r.category || r.role || r.level || "")}</div><h3>${h(r.title)}</h3>${college(r) ? `<p class="collection-college">${h(college(r))}</p>` : ""}${r.organization ? `<p>${h(r.organization)}</p>` : ""}<div class="collection-meta">${r.status ? badge(r.status) : ""}${r.due ? `<span>${icon("calendar")}${dateLabel(r.due, true)}${r.time ? ` · ${h(r.time)}` : ""}</span>` : ""}</div>${key === "activities" ? `<div class="activity-facts"><span>${h(r.grades || "Years not set")}</span><span>${Number(r.hours) || 0} h/wk · ${Number(r.weeks) || 0} wk/yr</span></div>` : ""}${key === "tests" ? `<div class="score-pair"><div><small>Your score</small><strong>${h(r.score || "—")}</strong></div><div><small>Target</small><strong>${h(r.target || "—")}</strong></div></div>` : ""}${key === "expenses" ? `<div class="expense-amount">${money(r.amount)}</div>` : ""}${r.location ? `<p>${icon("pin")} ${h(r.location)}</p>` : ""}${r.email ? `<p class="contact-detail">${h(r.email)}${r.phone ? `<br>${h(r.phone)}` : ""}</p>` : ""}${r.description || r.notes ? `<p class="collection-description">${h(r.description || r.notes)}</p>` : ""}${
+            (r, idx) =>
+              `<article class="collection-card"><div class="collection-heading"><span class="tool-symbol ${key === "visits" ? "lavender" : "blue"}">${icon(c.icon)}</span><div class="button-group">${tools(key, r)}</div></div><div class="eyebrow">${h(r.category || r.role || r.level || "")}</div><h3>${h(r.title)}</h3>${college(r) ? `<p class="collection-college">${h(college(r))}</p>` : ""}${r.organization ? `<p>${h(r.organization)}</p>` : ""}<div class="collection-meta">${r.status ? badge(r.status) : ""}${r.due ? `<span>${icon("calendar")}${dateLabel(r.due, true)}${r.time ? ` · ${h(clock(r.time))}` : ""}</span>` : ""}</div>${key === "activities" ? `<div class="activity-facts"><span>${h(r.grades || "Years not set")}</span><span>${Number(r.hours) || 0} h/wk · ${Number(r.weeks) || 0} wk/yr</span></div>` : ""}${key === "tests" ? `<div class="score-pair"><div><small>Your score</small><strong>${h(r.score || "—")}</strong></div><div><small>Target</small><strong>${h(r.target || "—")}</strong></div></div>` : ""}${key === "expenses" ? `<div class="expense-amount">${money(r.amount)}</div>` : ""}${r.location ? `<p>${icon("pin")} ${h(r.location)}</p>` : ""}${r.email || r.phone ? `<p class="contact-detail">${r.email ? h(r.email) : ""}${r.email && r.phone ? "<br>" : ""}${r.phone ? h(r.phone) : ""}</p>` : ""}${r.description || r.notes ? `<p class="collection-description">${h(r.description || r.notes)}</p>` : ""}${
                 r.questions
                   ? `<details><summary>Questions to ask</summary><ul>${r.questions
                       .split("\n")
@@ -158,12 +179,12 @@ export function createExtras(ctx) {
                       .map((q) => `<li>${h(q)}</li>`)
                       .join("")}</ul></details>`
                   : ""
-              }${r.reflection ? `<details><summary>Reflections & follow-up</summary><p class="preserve-lines">${h(r.reflection)}</p></details>` : ""}${r.history ? `<details><summary>Conversation log</summary><p class="preserve-lines">${h(r.history)}</p></details>` : ""}${key === "activities" ? `<div class="card-footer">${btn("Move up", `extra-up:${key}/${r.id}`, "ghost", "chevron")}<small>${(r.description || "").length} characters</small></div>` : ""}</article>`,
+              }${r.reflection ? `<details><summary>Reflections & follow-up</summary><p class="preserve-lines">${h(r.reflection)}</p></details>` : ""}${r.history ? `<details><summary>Conversation log</summary><p class="preserve-lines">${h(r.history)}</p></details>` : ""}${key === "activities" ? `<div class="card-footer">${btn("Move up", `extra-up:${key}/${r.id}`, "ghost", "chevron", `${idx === 0 ? "disabled " : ""}data-move-up`) }<small>${(r.description || "").length} characters</small></div>` : ""}</article>`,
           )
           .join("")}</div>`
       : empty(
           c.icon,
-          showArchived
+          showingArchived
             ? "No archived records"
             : `No ${c.name.toLowerCase()} yet`,
           c.description,
@@ -172,9 +193,16 @@ export function createExtras(ctx) {
   }
   function budget() {
     const sums = budgetTotals(collection("expenses"));
-    const cap = Number(state().profile.budgetLimit) || 0,
-      committed = sums.paid + sums.planned;
-    return `<section class="budget-summary panel"><div><span class="eyebrow">APPLICATION SPENDING</span><strong class="budget-total">${money(committed)}</strong><p>Paid + planned · excludes waived fees</p>${cap ? `<div class="progress-track"><i style="width:${Math.min(100, (committed / cap) * 100)}%"></i></div><small>${money(Math.max(0, cap - committed))} remaining of ${money(cap)}${committed > cap ? ` · ${money(committed - cap)} over budget` : ""}</small>` : ""}</div><div class="budget-breakdown"><div><span>Paid</span><strong>${money(sums.paid)}</strong></div><div><span>Planned</span><strong>${money(sums.planned)}</strong></div><div><span>Fees waived</span><strong>${money(sums.waived)}</strong></div>${btn("Set budget", "extra-budget", "secondary", "edit")}</div></section>`;
+    const rawCap = state().profile.budgetLimit;
+    const hasCap =
+      rawCap !== undefined &&
+      rawCap !== null &&
+      rawCap !== "" &&
+      Number.isFinite(Number(rawCap));
+    const cap = hasCap ? Number(rawCap) : 0;
+    const committed = sums.paid + sums.planned;
+    const pct = cap > 0 ? Math.min(100, (committed / cap) * 100) : committed > 0 ? 100 : 0;
+    return `<section class="budget-summary panel"><div><span class="eyebrow">APPLICATION SPENDING</span><strong class="budget-total">${money(committed)}</strong><p>Paid + planned · excludes waived fees</p>${hasCap ? `<div class="progress-track"><i style="width:${pct}%"></i></div><small>${money(Math.max(0, cap - committed))} remaining of ${money(cap)}${committed > cap ? ` · ${money(committed - cap)} over budget` : ""}</small>` : ""}</div><div class="budget-breakdown"><div><span>Paid</span><strong>${money(sums.paid)}</strong></div><div><span>Planned</span><strong>${money(sums.planned)}</strong></div><div><span>Fees waived</span><strong>${money(sums.waived)}</strong></div>${btn("Set budget", "extra-budget", "secondary", "edit")}</div></section>`;
   }
   function activitiesPage() {
     return (
@@ -183,7 +211,7 @@ export function createExtras(ctx) {
         "A reusable record of what you do and the impact you make.",
         `<div class="button-group">${btn("Export résumé", "extra-resume", "secondary", "download")}${btn("Add activity", "extra-form:activities", "primary", "plus")}</div>`,
       ) +
-      `<section class="panel">${toolbar("activities")}${cards("activities")}</section><section class="panel"><div class="panel-heading"><div><h2>Honors & recognition</h2><p>Awards, achievements, and the context behind them.</p></div>${btn("Add honor", "extra-form:honors", "secondary", "plus")}</div>${cards("honors")}</section>`
+      `<section class="panel">${toolbar("activities")}${cards("activities")}</section><section class="panel"><div class="panel-heading"><div><h2>Honors & recognition</h2><p>Awards, achievements, and the context behind them.</p></div>${btn("Add honor", "extra-form:honors", "secondary", "plus")}</div>${toolbar("honors")}${cards("honors")}</section>`
     );
   }
   function recordPage(key) {
@@ -370,10 +398,12 @@ export function createExtras(ctx) {
       case "extra-form":
         form(key, id);
         break;
-      case "extra-archived":
-        showArchived = !showArchived;
+      case "extra-archived": {
+        const target = key || lastPage;
+        showArchivedByKey[target] = !isShowingArchived(target);
         render();
         break;
+      }
       case "extra-archive":
         if (!config[key]) break;
         mutate(() => {
@@ -385,7 +415,11 @@ export function createExtras(ctx) {
         mutate(() => {
           const a = collection(key),
             i = a.findIndex((r) => r.id === id);
-          if (i > 0) [a[i - 1], a[i]] = [a[i], a[i - 1]];
+          if (i <= 0) return;
+          const wantArchived = Boolean(a[i].archived);
+          let prev = i - 1;
+          while (prev >= 0 && Boolean(a[prev].archived) !== wantArchived) prev--;
+          if (prev >= 0) [a[prev], a[i]] = [a[i], a[prev]];
         });
         break;
       case "extra-week":
@@ -438,7 +472,7 @@ export function createExtras(ctx) {
           field(
             "Budget limit (USD)",
             "budgetLimit",
-            state().profile.budgetLimit || "",
+            state().profile.budgetLimit ?? "",
             "number",
             'required min="0" max="10000000" step="0.01"',
           ),
@@ -518,9 +552,10 @@ export function createExtras(ctx) {
     return true;
   }
   document.addEventListener("change", (e) => {
+    if (!(e.target instanceof Element)) return;
     if (e.target.dataset.review) {
       const [id, i] = e.target.dataset.review.split("/");
-      mutate(
+      const ok = mutate(
         () => {
           const essay = state().essays.find((x) => x.id === id);
           if (!essay) return;
@@ -531,25 +566,19 @@ export function createExtras(ctx) {
         "",
         false,
       );
+      if (!ok) e.target.checked = !e.target.checked;
     }
   });
   document.addEventListener("input", (e) => {
-    if (e.target.dataset.characterCount) {
-      let counter = e.target.parentElement.querySelector(".character-count");
-      if (!counter) {
-        counter = document.createElement("small");
-        counter.className = "character-count";
-        e.target.after(counter);
-      }
-      counter.textContent = `${e.target.value.length} characters · ${words(e.target.value)} words`;
-    }
+    if (!(e.target instanceof Element)) return;
+    if (e.target.dataset.characterCount) updateCharCount(e.target);
   });
   return {
     handle,
     renderPage: (page) => {
       if (lastPage !== page) {
         lastPage = page;
-        showArchived = false;
+        showArchivedByKey = {};
       }
       return page === "planner"
         ? planner()

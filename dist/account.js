@@ -1,7 +1,7 @@
 let cached=null;
 async function privateResponseWorker(){
  if(!('serviceWorker' in navigator))return;
- const registration=await navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'});await registration.update();
+ const registration=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await registration.update();
  const next=registration.installing||registration.waiting;if(!next||next.state==='activated')return;
  await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{next.removeEventListener('statechange',check);reject(Error('The offline app is updating. Reload Ascend and sign in again.'));},35000);function check(){if(next.state==='activated'){clearTimeout(timeout);next.removeEventListener('statechange',check);resolve();}else if(next.state==='redundant'){clearTimeout(timeout);next.removeEventListener('statechange',check);reject(Error('The offline update did not finish. Reload Ascend.'));}}next.addEventListener('statechange',check);check();});
 }
@@ -11,7 +11,17 @@ export async function accountSession(refresh=false){
 }
 export async function passwordLogin(password){
  const r=await fetch('/api/account?mode=password-login',{method:'POST',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(20000),headers:{'X-Ascend-Client':'web','Content-Type':'application/json'},body:JSON.stringify({password})});
- const result=await r.json();if(!r.ok){const error=Error(result.error||'Sign-in did not finish. Try again.');error.status=r.status;error.retryAfter=Number(r.headers.get('Retry-After')||0);throw error;}
+ let result=null;
+ const type=r.headers.get('content-type')||'';
+ if(type.includes('application/json')){try{result=await r.json();}catch{result=null;}}
+ if(!r.ok){
+  const error=Error(result?.error||'Sign-in is temporarily unavailable. Try again.');
+  error.status=r.status;
+  error.retryAfter=Number(r.headers.get('Retry-After')||0);
+  if(!result&&r.status>=500)error.offlineFallback=true;
+  throw error;
+ }
+ if(!result){const error=Error('Sign-in service returned an unexpected response.');error.offlineFallback=true;throw error;}
  cached=null;return result;
 }
 export async function accountConnection(){await privateResponseWorker();const r=await fetch('/api/account?mode=connection',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000),headers:{'X-Ascend-Client':'web'}});if(!r.ok){const e=Error(r.status===401?'Enter your website password again to reconnect this browser.':'Your account connection is unavailable. Your saved workspace is preserved.');e.status=r.status;throw e;}return r.json();}

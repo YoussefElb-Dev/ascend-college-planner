@@ -93,10 +93,16 @@ let route = location.hash.slice(1) || "home",
   calendarView = "Month",
   calendarDate = new Date(),
   directoryKind = "colleges",
+  directoryFilters = {
+    colleges: { query: "", state: "", type: "" },
+    "high-schools": { query: "", state: "", type: "" },
+  },
   directoryQuery = "",
   directoryState = "",
   directoryType = "",
   savedOnly = false,
+  lastRenderedRoute = "",
+  pendingEditorSave = null,
   selectedEssay = "",
   essayQuery = "",
   essayCategory = "",
@@ -119,6 +125,7 @@ let directories = {},
   dragged = "",
   toastTimer,
   modalReturnFocus,
+  modalReturnAction = "",
   editorTimer;
 const formHandlers = new Map();
 const root = document.querySelector("#app");
@@ -175,8 +182,15 @@ const morePages = [
 ];
 Object.assign(pageNames,{studio:"Studio & tools",focus:"Focus timer",readiness:"Submission review",sync:"Device sync",...Object.fromEntries(TOOL_DEFINITIONS.map(d=>[d.key,d.title]))});
 const pageIcons = {
-  home:"chart", applications:"file", colleges:"school", tasks:"tasks",
-  studio:"spark",focus:"clock",readiness:"check",sync:"shield",
+  home: "chart",
+  applications: "file",
+  colleges: "school",
+  portals: "external",
+  tasks: "tasks",
+  studio: "spark",
+  focus: "clock",
+  readiness: "check",
+  sync: "shield",
   deadlines: "calendar",
   resources: "book",
   planner: "calendar",
@@ -199,12 +213,22 @@ const pageIcons = {
   notes: "note",
   analytics: "chart",
   settings: "settings",
+  courses: "book",
+  assignments: "tasks",
+  habits: "check",
+  focusSessions: "clock",
+  prompts: "edit",
+  interviewPractice: "users",
+  collegeScores: "compare",
+  weeklyReviews: "chart",
+  receipts: "file",
+  readingList: "book",
 };
 const activeApps = () => state.applications.filter((a) => !a.archived);
 const btn = (label, action, style = "secondary", ico = "", extra = "") =>
-  `<button class="btn ${style}" data-action="${action}" ${extra}>${ico ? icon(ico) : ""}${label}</button>`;
+  `<button ${/\btype=/.test(extra) ? "" : 'type="button" '}class="btn ${style}" data-action="${action}" ${extra}>${ico ? icon(ico) : ""}${label}</button>`;
 const ibtn = (name, label, action, extra = "") =>
-  `<button class="icon-btn" aria-label="${h(label)}" title="${h(label)}" data-action="${action}" ${extra}>${icon(name)}</button>`;
+  `<button ${/\btype=/.test(extra) ? "" : 'type="button" '}class="icon-btn" aria-label="${h(label)}" title="${h(label)}" data-action="${action}" ${extra}>${icon(name)}</button>`;
 const link = (label, url, cls = "text-link") =>
   safeUrl(url)
     ? `<a class="${cls}" href="${h(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${label}${icon("external")}</a>`
@@ -232,11 +256,30 @@ const initials = (name) =>
 const monogram = (name, size = "") =>
   `<span class="monogram ${size}" style="--tint:${["blue", "plum", "green", "ochre"][[...name].reduce((n, c) => n + c.charCodeAt(0), 0) % 4]}">${h(initials(name))}</span>`;
 function toast(message) {
+  if (isPrivacyLocked()) return;
+  const container = document.querySelector("#toasts");
+  if (!container) return;
   const el = document.createElement("div");
   el.className = "toast";
   el.innerHTML = `${icon("check")}<span>${h(message)}</span>`;
-  document.querySelector("#toasts").append(el);
-  setTimeout(() => el.remove(), 4200);
+  container.append(el);
+  if (typeof container.showPopover === "function") {
+    try {
+      if (container.matches(":popover-open")) container.hidePopover();
+      container.showPopover();
+    } catch {}
+  }
+  setTimeout(() => {
+    el.remove();
+    if (
+      !container.childElementCount &&
+      typeof container.hidePopover === "function"
+    ) {
+      try {
+        container.hidePopover();
+      } catch {}
+    }
+  }, 4200);
 }
 function save(renderAfter = false) {
   if (storageReadFailed) {
@@ -269,7 +312,42 @@ function mutate(fn, message, renderAfter = true) {
   if (message) toast(message);
   return true;
 }
+function flushPendingEditorSave() {
+  if (editorTimer) {
+    clearTimeout(editorTimer);
+    editorTimer = null;
+  }
+  if (pendingEditorSave) {
+    const fn = pendingEditorSave;
+    pendingEditorSave = null;
+    fn();
+  }
+}
+function scheduleEditorSave(fn) {
+  pendingEditorSave = fn;
+  clearTimeout(editorTimer);
+  editorTimer = setTimeout(() => {
+    editorTimer = null;
+    const run = pendingEditorSave;
+    pendingEditorSave = null;
+    run?.();
+  }, 350);
+}
+function setDirectoryKind(kind) {
+  if (directoryKind === kind) return;
+  directoryFilters[directoryKind] = {
+    query: directoryQuery,
+    state: directoryState,
+    type: directoryType,
+  };
+  directoryKind = kind;
+  const next = directoryFilters[kind] || { query: "", state: "", type: "" };
+  directoryQuery = next.query;
+  directoryState = next.state;
+  directoryType = next.type;
+}
 function navigate(path) {
+  flushPendingEditorSave();
   closeDialog();
   if (location.hash.slice(1) === path) {
     route = path;
@@ -324,32 +402,44 @@ function formDialog(
   );
 }
 function dialog(html, wide = false) {
-  if(isPrivacyLocked())return;
-  closeDialog();
-  modalReturnFocus = document.activeElement;
-  const returnFocus = modalReturnFocus;
-  const returnAction = returnFocus?.dataset?.action;
+  if (isPrivacyLocked()) return;
   const container = document.querySelector("#dialogs");
+  const hadDialog = Boolean(container.querySelector("dialog"));
+  if (!hadDialog) {
+    modalReturnFocus = document.activeElement;
+    modalReturnAction = modalReturnFocus?.dataset?.action || "";
+  }
+  closeDialog();
+  const returnFocus = modalReturnFocus;
+  const returnAction = modalReturnAction;
   container.innerHTML = `<dialog class="modal ${wide ? "wide" : ""}" aria-label="Ascend dialog">${html}</dialog>`;
   const d = container.querySelector("dialog");
   d.showModal();
+  let backdropDown = false;
+  const isOutside = (e) => {
+    const rect = d.getBoundingClientRect();
+    return (
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+    );
+  };
+  d.addEventListener("pointerdown", (e) => {
+    backdropDown = e.target === d && isOutside(e);
+  });
   d.addEventListener("click", (e) => {
-    if (e.target === d) {
-      const rect = d.getBoundingClientRect();
-      if (
-        e.clientX < rect.left ||
-        e.clientX > rect.right ||
-        e.clientY < rect.top ||
-        e.clientY > rect.bottom
-      )
-        closeDialog(true);
-    }
+    const shouldClose = backdropDown && e.target === d && isOutside(e);
+    backdropDown = false;
+    if (shouldClose) closeDialog(true);
   });
   d.addEventListener("close", () => {
     const form = d.querySelector("[data-form]");
     if (form) formHandlers.delete(form.dataset.form);
     d.remove();
     if (!container.querySelector("dialog")) {
+      modalReturnFocus = null;
+      modalReturnAction = "";
       const target = returnFocus?.isConnected
         ? returnFocus
         : returnAction
@@ -364,9 +454,12 @@ function dialog(html, wide = false) {
     e.preventDefault();
     closeDialog(true);
   });
-  requestAnimationFrame(() =>
-    d.querySelector("input:not([type=hidden]),textarea,button")?.focus(),
-  );
+  requestAnimationFrame(() => {
+    const control = d.querySelector(
+      ".form-grid input:not([type=hidden]):not([disabled]), .form-grid select:not([disabled]), .form-grid textarea:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])",
+    );
+    (control || d.querySelector("button:not([disabled])"))?.focus();
+  });
 }
 function closeDialog(animate = false) {
   const d = document.querySelector("dialog");
@@ -374,6 +467,7 @@ function closeDialog(animate = false) {
     if (animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       if (d.classList.contains("closing")) return;
       d.classList.add("closing");
+      d.inert = true;
       setTimeout(() => {
         if (d.isConnected) {
           d.close();
@@ -390,10 +484,7 @@ function confirmAction(title, text, fn) {
   formDialog(
     title,
     `<p class="full body-copy">${text}</p>`,
-    () => {
-      fn();
-      return true;
-    },
+    () => fn() !== false,
     "Confirm",
   );
 }
@@ -401,6 +492,9 @@ function applyTheme() {
   const pref = APPEARANCES.some(([value]) => value === state.profile.theme)
     ? state.profile.theme
     : "light";
+  try {
+    localStorage.setItem("ascend.theme.v1", pref);
+  } catch {}
   document.documentElement.dataset.theme =
     pref === "system"
       ? matchMedia("(prefers-color-scheme: dark)").matches
@@ -409,12 +503,14 @@ function applyTheme() {
       : pref;
   document.documentElement.style.colorScheme =
     document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]').content =
-    document.documentElement.dataset.theme === "dark"
-      ? "#111722"
-      : pref === "monochrome"
-        ? "#e9e9e9"
-        : "#ffffff";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta)
+    meta.content =
+      document.documentElement.dataset.theme === "dark"
+        ? "#1b1a24"
+        : pref === "monochrome"
+          ? "#f4f4f4"
+          : "#f5f4f8";
 }
 
 function appearanceOptions() {
@@ -431,24 +527,108 @@ function appearanceDialog() {
   );
 }
 function render() {
-  if(isPrivacyLocked())return;
+  if (isPrivacyLocked()) return;
   applyTheme();
-  const base = route.split("/")[0];
-  document.title = `${pageNames[base] || "College workspace"} · Ascend`;
-  const primary = ["home", "applications", "planner", "tasks", "colleges", "fafsa", "css-profile"];
+  const sameRoute = lastRenderedRoute === route;
+  const openDetails = sameRoute
+    ? [...root.querySelectorAll("main details")].map((d) => d.open)
+    : null;
+  const compareScrollLeft = sameRoute
+    ? root.querySelector(".compare-scroll")?.scrollLeft || 0
+    : 0;
+  const [rawBase, routeId] = route.split("/");
+  const knownBase =
+    Boolean(pageNames[rawBase]) ||
+    rawBase === "application" ||
+    rawBase === "college";
+  const base = knownBase ? rawBase : "home";
+  const detailTitle =
+    base === "application"
+      ? state.applications.find((a) => a.id === routeId)?.name ||
+        "Application workspace"
+      : base === "college"
+        ? schoolRecords("colleges").find((c) => c.id === routeId)?.name ||
+          "College profile"
+        : pageNames[base] || "Overview";
+  document.title = `${detailTitle} · Ascend`;
+  const primary = [
+    "home",
+    "applications",
+    "planner",
+    "tasks",
+    "colleges",
+    "fafsa",
+    "css-profile",
+  ];
   const navItem = (p) => {
-    const selected = base === p || (p === "applications" && base === "application") || (p === "colleges" && base === "college");
+    const selected =
+      base === p ||
+      (p === "applications" && base === "application") ||
+      (p === "colleges" && base === "college");
     return `<a href="#${p}" class="top-nav-link ${selected ? "active" : ""}" ${selected ? 'aria-current="page"' : ""}>${icon(pageIcons[p] || "folder")}<span>${pageNames[p]}</span></a>`;
   };
   const groups = [
-    ["Your story", ["portals", "essays", "activities", "recommendations", "documents", "tests", "questbridge"]],
-    ["Money & decisions", ["financial-aid", "scholarships", "compare", "expenses", "readiness", "analytics"]],
-    ["Your everyday", ["studio", "focus", "notes", "deadlines", "contacts", "visits", "goals", "resources", "high-schools", "sync", "settings"]],
+    [
+      "Your story",
+      [
+        "portals",
+        "essays",
+        "activities",
+        "recommendations",
+        "documents",
+        "tests",
+        "questbridge",
+      ],
+    ],
+    [
+      "Money & decisions",
+      [
+        "financial-aid",
+        "scholarships",
+        "compare",
+        "expenses",
+        "readiness",
+        "analytics",
+      ],
+    ],
+    [
+      "Your everyday",
+      [
+        "studio",
+        "focus",
+        "notes",
+        "deadlines",
+        "contacts",
+        "visits",
+        "goals",
+        "resources",
+        "high-schools",
+        "sync",
+        "settings",
+      ],
+    ],
   ];
-  root.innerHTML = `<header class="floating-header"><div class="top-header-row"><a class="top-brand" href="#home" aria-label="Ascend home"><img src="./assets/ascend-mark.png" alt=""><span>ascend<span>.</span></span></a><span class="top-context">Your next chapter, in focus.</span><div class="top-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<a class="icon-btn" href="#sync" aria-label="Device sync">${icon("shield")}</a>${btn("Add new", "quick-add", "primary", "plus")}<button class="avatar top-avatar" data-action="profile" aria-label="Your profile">${h(initials(state.profile.name || "Your workspace"))}</button></div></div><div class="top-navigation-row"><nav class="top-navigation" aria-label="Main navigation">${primary.map(navItem).join("")}</nav><details class="nav-more"><summary>${icon("folder")}<span>More</span>${icon("down")}</summary><div class="top-menu">${groups.map(([label,pages]) => `<div><span class="top-menu-label">${label}</span>${pages.map(navItem).join("")}</div>`).join("")}<div class="top-tool-links"><span class="top-menu-label">More studio tools</span>${TOOL_DEFINITIONS.map(d=>navItem(d.key)).join("")}</div></div></details></div></header><div class="app-content"><main id="main" data-page="${base}" tabindex="-1">${storageReadFailed ? `<div class="recovery-banner"><strong>Your saved workspace needs attention.</strong><p>It has been preserved. Download the original data before importing a backup or resetting.</p>${btn("Download original data", "export-original", "secondary", "download")}${btn("Open recovery settings", "nav:settings", "ghost")}</div>` : ""}${renderPage()}</main><footer class="site-footer"><span>Ascend · A little clarity for your next chapter.</span><a href="#sync">${icon("shield")} Private workspace</a></footer></div>`;
+  const inMore =
+    groups.some(([, pages]) => pages.includes(base)) ||
+    TOOL_DEFINITIONS.some((d) => d.key === base);
+  root.innerHTML = `<header class="floating-header"><div class="top-header-row"><a class="top-brand" href="#home" aria-label="Ascend home"><img src="./assets/ascend-mark.png" alt=""><span>ascend<span>.</span></span></a><span class="top-context">Your next chapter, in focus.</span><div class="top-actions">${ibtn("search", "Search everything (Ctrl+K)", "search")}${ibtn("bell", "Notifications", "notifications")}${ibtn(document.documentElement.dataset.theme === "dark" ? "moon" : "sun", "Change appearance", "theme")}<a class="icon-btn" href="#sync" aria-label="Device sync">${icon("shield")}</a>${btn("Add new", "quick-add", "primary", "plus")}<button type="button" class="avatar top-avatar" data-action="profile" aria-label="Your profile">${h(initials(state.profile.name || "Your workspace"))}</button></div></div><div class="top-navigation-row"><nav class="top-navigation" aria-label="Main navigation">${primary.map(navItem).join("")}</nav><details class="nav-more"><summary class="${inMore ? "active" : ""}">${icon("folder")}<span>More</span>${icon("down")}</summary><div class="top-menu">${groups.map(([label, pages]) => `<div><span class="top-menu-label">${label}</span>${label === "Your everyday" ? `<button type="button" class="top-nav-link" data-action="notifications">${icon("bell")}<span>Reminders</span></button>` : ""}${pages.map(navItem).join("")}</div>`).join("")}<div class="top-tool-links"><span class="top-menu-label">More studio tools</span>${TOOL_DEFINITIONS.map((d) => navItem(d.key)).join("")}</div></div></details></div></header><div class="app-content"><main id="main" data-page="${h(base)}" tabindex="-1">${storageReadFailed ? `<div class="recovery-banner"><strong>Your saved workspace needs attention.</strong><p>It has been preserved. Download the original data before importing a backup or resetting.</p>${btn("Download original data", "export-original", "secondary", "download")}${btn("Open recovery settings", "nav:settings", "ghost")}</div>` : ""}${renderPage()}</main><footer class="site-footer"><span>Ascend · A little clarity for your next chapter.</span><a href="#sync">${icon("shield")} Private workspace</a></footer></div>`;
+  lastRenderedRoute = route;
+  if (openDetails) {
+    const details = root.querySelectorAll("main details");
+    if (details.length === openDetails.length) {
+      details.forEach((d, i) => {
+        d.open = openDetails[i];
+      });
+    }
+  }
+  if (compareScrollLeft) {
+    const cs = root.querySelector(".compare-scroll");
+    if (cs) cs.scrollLeft = compareScrollLeft;
+  }
   if (["colleges", "high-schools", "compare", "college"].includes(base))
     loadDirectory(base === "high-schools" ? "high-schools" : "colleges");
   if (base === "essays") connectEditor();
+  if (base === "planner") planner.afterRender?.();
   if (base === "colleges" || base === "college") hydrateCollegeMedia();
   if (loadError) {
     toast(
@@ -476,7 +656,7 @@ function renderPage() {
       return applicationWorkspace(id);
     case "colleges":
     case "high-schools":
-      directoryKind = base;
+      setDirectoryKind(base);
       return directoryPage();
     case "college":
       return collegeProfile(id);
@@ -511,11 +691,22 @@ function dashboard() {
   return homePage({ state, btn, missionFilter, missionPhaseFilter });
 }
 function filterTabs(compact = false) {
+  const extraValues = compact
+    ? []
+    : STATUSES.filter(
+        (s) =>
+          !APPLICATION_TABS.includes(s) &&
+          s !== "Awaiting Decision" &&
+          activeApps().some((a) => a.status === s),
+      );
   const values = compact
     ? ["All", "In Progress", "Submitted", "Accepted"]
-    : [...APPLICATION_TABS.slice(0, -1), ...STATUSES.filter(s => !APPLICATION_TABS.includes(s) && s !== "Awaiting Decision" && activeApps().some(a => a.status === s)), "Complete"];
+    : [...APPLICATION_TABS.slice(0, -1), ...extraValues, "Complete"];
+  if (!compact && appFilter !== "All" && !values.includes(appFilter)) {
+    values.push(appFilter);
+  }
   const prefix = compact ? "home-apps" : "applications";
-  return `<div class="filter-tabs ${compact ? "compact" : "application-status-tabs"}" role="tablist" aria-label="Application views">${values.map((s, i) => `<button id="${prefix}-tab-${i}" role="tab" aria-selected="${appFilter === s}" aria-controls="${prefix}-results" tabindex="${appFilter === s || (!values.includes(appFilter) && i === 0) ? 0 : -1}" class="${appFilter === s ? "selected" : ""}" data-action="app-filter:${s}">${s}<span>${state.applications.filter((a) => matchesApplicationView(a, s)).length}</span></button>`).join("")}</div>`;
+  return `<div class="filter-tabs ${compact ? "compact" : "application-status-tabs"}" role="tablist" aria-label="Application views">${values.map((s, i) => `<button type="button" id="${prefix}-tab-${i}" role="tab" aria-selected="${appFilter === s}" aria-controls="${prefix}-results" tabindex="${appFilter === s || (!values.includes(appFilter) && i === 0) ? 0 : -1}" class="${appFilter === s ? "selected" : ""}" data-action="app-filter:${h(s)}">${h(s)}<span>${state.applications.filter((a) => matchesApplicationView(a, s)).length}</span></button>`).join("")}</div>`;
 }
 function filteredApps() {
   return state.applications
@@ -534,7 +725,7 @@ function filteredApps() {
         : appSort === "deadline"
           ? (a.deadline || "9999").localeCompare(b.deadline || "9999")
           : appSort === "progress"
-            ? progress(b) - progress(a)
+            ? applicationChecklist(b).percent - applicationChecklist(a).percent
             : appSort === "round"
               ? (a.round || "zzzz").localeCompare(b.round || "zzzz") || a.name.localeCompare(b.name)
               : appSort === "tier"
@@ -558,14 +749,16 @@ function applicationsTable(home = false) {
   if (home) list = list.slice(0, 5);
   if (!home && appView === "Matrix") return applicationMatrixTable(list);
   const panelAttributes = `id="${home ? "home-apps" : "applications"}-results" role="tabpanel" aria-label="${h(appFilter)} applications"`;
+  const hasAnyApps = state.applications.length > 0;
+  const hasFilteredContext = hasAnyApps && (appFilter !== "All" || Boolean(appQuery));
   if (!list.length)
     return `<div ${panelAttributes}>` + empty(
       "school",
-      activeApps().length ? (appFilter === "Complete" && !appQuery ? "No completed checklists yet" : "No matching applications") : "No applications yet",
-      activeApps().length
+      hasFilteredContext ? (appFilter === "Complete" && !appQuery ? "No completed checklists yet" : "No matching applications") : "No applications yet",
+      hasFilteredContext
         ? (appFilter === "Complete" && !appQuery ? "Applications appear here when every required checklist item is done. Try opening another tab to keep working on them." : "Try another status tab or clear your search to see more applications.")
         : "Add a college to track its requirements and deadlines.",
-      activeApps().length ? btn("View all applications", "reset-app-filters", "secondary", "arrow") : btn(
+      hasFilteredContext ? btn("View all applications", "reset-app-filters", "secondary", "arrow") : btn(
         "Add your first application",
         "add-application",
         "secondary",
@@ -697,28 +890,30 @@ function applicationWorkspace(id) {
       "It may have been removed.",
       btn("View applications", "nav:applications"),
     );
-  const p = progress(a);
+  const checklist = applicationChecklist(a);
+  const p = checklist.percent;
   const portal = portalCheckInfo(a);
-  return `<a class="back-link" href="#applications">${icon("arrow")}All applications</a><div class="workspace-heading">${monogram(a.name, "large")}<div><div class="eyebrow">${h(a.pathway || "YOUR COLLEGE WORKSPACE")}${a.tier ? ` · ${h(a.tier.toUpperCase())}` : ""}</div><h1>${h(a.name)}</h1><p>${h(a.major || "A major to explore")} <span>·</span> ${h(a.round)}</p></div><div class="button-group">${btn("Verified portal today", `portal-confirm:${id}`, "ghost", "check")}${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}</div></div><div class="workspace-summary"><span>${badge(a.status)}${a.tier ? ` ${badge(a.tier)}` : ""}<small>${portal.checkedAt ? `Portal checked ${dateLabel(portal.checkedAt, true)}` : "Portal check not recorded yet"}</small></span><span>${icon("calendar")}<strong>${dateLabel(a.deadline, true)}</strong><small>${a.deadline ? (a.deadlineTime ? h(`${a.deadlineTime} ${a.timezone || ""}`) : "Cutoff time not verified") : "Set your deadline in Edit application"}</small></span><span class="summary-progress"><strong>${p}% complete</strong><span class="progress-track"><i style="width:${p}%"></i></span><small>Admissions only · aid tracked separately</small></span></div>${a.completionReportedAt ? `<div class="info-note">${icon("check")}Admissions completed · reported by you ${dateLabel(a.completionReportedAt,true)}. School document receipts remain separately noted; aid lives in the top menu.</div>` : ""}<div class="workspace-tabs" role="tablist">${SECTIONS.map((t) => `<button role="tab" aria-selected="${workspaceTab === t}" class="${workspaceTab === t ? "selected" : ""}" data-action="workspace-tab:${t}">${t}</button>`).join("")}</div><section class="panel workspace-content">${workspaceBody(a)}</section>`;
+  const tabIdx = Math.max(0, SECTIONS.indexOf(workspaceTab));
+  return `<a class="back-link" href="#applications">${icon("arrow")}All applications</a><div class="workspace-heading">${monogram(a.name, "large")}<div><div class="eyebrow">${h(a.pathway || "YOUR COLLEGE WORKSPACE")}${a.tier ? ` · ${h(a.tier.toUpperCase())}` : ""}</div><h1>${h(a.name)}</h1><p>${h(a.major || "A major to explore")} <span>·</span> ${h(a.round)}</p></div><div class="button-group">${btn("Verified portal today", `portal-confirm:${id}`, "ghost", "check")}${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}</div></div><div class="workspace-summary"><span>${badge(a.status)}${a.tier ? ` ${badge(a.tier)}` : ""}<small>${portal.checkedAt ? `Portal checked ${dateLabel(portal.checkedAt, true)}` : "Portal check not recorded yet"}</small></span><span>${icon("calendar")}<strong>${dateLabel(a.deadline, true)}</strong><small>${a.deadline ? (a.deadlineTime ? h(`${a.deadlineTime} ${a.timezone || ""}`) : "Cutoff time not verified") : "Set your deadline in Edit application"}</small></span><span class="summary-progress"><strong>${p}% complete</strong><span class="progress-track"><i style="width:${p}%"></i></span><small>Admissions only · aid tracked separately</small></span></div>${a.completionReportedAt ? `<div class="info-note">${icon("check")}Admissions completed · reported by you ${dateLabel(a.completionReportedAt,true)}. School document receipts remain separately noted; aid lives in the top menu.</div>` : ""}<div class="workspace-tabs" role="tablist" aria-label="Application sections">${SECTIONS.map((t, i) => `<button type="button" id="workspace-tab-${i}" role="tab" aria-selected="${workspaceTab === t}" aria-controls="workspace-tabpanel" tabindex="${workspaceTab === t ? 0 : -1}" class="${workspaceTab === t ? "selected" : ""}" data-action="workspace-tab:${t}">${t}</button>`).join("")}</div><section id="workspace-tabpanel" role="tabpanel" aria-labelledby="workspace-tab-${tabIdx}" class="panel workspace-content">${workspaceBody(a)}</section>`;
 }
 function workspaceBody(a) {
+  const checklist = applicationChecklist(a);
+  const adm = admissionsRequirements(a);
   const linkedPrompts = (state.prompts || []).filter((r) => !r.archived && r.applicationId === a.id);
   const linkedReceipts = (state.receipts || []).filter((r) => !r.archived && r.applicationId === a.id);
   const linkedInterviews = (state.interviewPractice || []).filter((r) => !r.archived && r.applicationId === a.id);
   const portalTasks = (state.tasks || []).filter((t) => !t.archived && t.applicationId === a.id && t.category === "Portal setup");
   switch (workspaceTab) {
     case "Overview":
-      return `<div class="two-columns"><div><div class="panel-heading"><h2>A plan for ${h(a.name.split(" ")[0])}.</h2></div><p class="body-copy">Keep your requirements, writing, and next steps together. You decide what’s needed, and Ascend keeps track of your progress.</p><div class="detail-list"><div><span>Application round</span><strong>${h(a.round)}</strong></div><div><span>List tier</span><strong>${h(a.tier || "Not assigned")}</strong></div><div><span>Application pathway</span><strong>${h(a.pathway)}</strong></div><div><span>Deadline</span><strong>${dateLabel(a.deadline, true)}</strong></div><div><span>Portal status</span><strong>${h(a.portalAccess?.status || "Not checked")}${a.portalAccess?.checkedAt ? ` (${dateLabel(a.portalAccess.checkedAt)})` : ""}</strong></div><div><span>Requirements completed</span><strong>${admissionsRequirements(a).filter((r) => r.done && !r.exempt).length} of ${admissionsRequirements(a).filter((r) => !r.exempt).length}</strong></div></div><div class="button-group">${a.url ? link("Open official website", a.url, "btn secondary") : ""}${btn("Verified portal today", `portal-confirm:${a.id}`, "ghost", "check")}</div></div><div class="soft-box"><span class="eyebrow">YOUR NEXT STEP</span><h3>${h(admissionsRequirements(a).find((r) => !r.done && !r.exempt)?.title || (applicationChecklist(a).complete ? "Admissions checklist complete." : "Make your own checklist."))}</h3><p>Requirements are personal to this application. Check the college’s official site before adding them.</p>${btn("Open requirements", "workspace-tab:Requirements", "secondary", "tasks")}<div class="info-note">${icon("shield")}Your changes here don’t submit anything to a college.</div></div></div><div class="workspace-hub-grid"><div class="soft-box"><div class="panel-heading"><h3>Portal & submission receipts (${linkedReceipts.length})</h3>${btn("Add receipt", `studio-add-for:receipts/${a.id}`, "ghost", "plus")}</div>${linkedReceipts.length ? linkedReceipts.map((r) => `<div class="record-row"><div><strong>${h(r.title)}</strong><small>${h(r.category || "Receipt")}${r.confirmation ? ` · Ref: ${h(r.confirmation)}` : ""}${r.date ? ` · ${dateLabel(r.date, true)}` : ""}</small></div>${ibtn("edit", "Edit receipt", `studio-edit:receipts/${r.id}`)}</div>`).join("") : `<p class="muted">Save confirmation numbers and portal verification dates here.</p>`}${portalTasks.length ? `<div class="portal-steps-mini"><strong>Portal setup tasks</strong>${portalTasks.map((t) => `<div class="record-row"><button class="task-check ${t.status === "Done" ? "checked" : ""}" data-action="complete-task:${t.id}" aria-label="Complete ${h(t.title)}">${t.status === "Done" ? icon("check") : ""}</button><span>${h(t.title)}</span></div>`).join("")}</div>` : ""}</div><div class="soft-box"><div class="panel-heading"><h3>Supplemental prompts & interviews</h3><div class="button-group">${btn("Add prompt", `studio-add-for:prompts/${a.id}`, "ghost", "plus")}${btn("Practice interview", `studio-add-for:interviewPractice/${a.id}`, "ghost", "plus")}</div></div>${linkedPrompts.map((p) => { const draft = state.essays.find((e) => e.id === p.essayId || e.promptId === p.id); const wc = draft ? words(draft.body) : 0; const over = Number(p.limit) > 0 && wc > Number(p.limit); return `<div class="record-row"><div><strong>${h(p.title)}</strong><small>${h(p.status || "Not Started")}${p.limit ? ` · ${wc}/${p.limit} words` : ""}${over ? ` · <b class="danger-text">${wc - Number(p.limit)} over limit</b>` : ""}</small></div>${draft ? btn("Open draft", `open-essay:${draft.id}`, "ghost") : btn("Write draft", `prompt-draft:${p.id}`, "ghost", "edit")}${ibtn("edit", "Edit prompt", `studio-edit:prompts/${p.id}`)}</div>`; }).join("")}${linkedInterviews.map((iv) => `<div class="record-row"><div><strong>${h(iv.title)}</strong><small>Interview prep · ${h(iv.question || "")}</small></div>${ibtn("edit", "Edit interview prep", `studio-edit:interviewPractice/${iv.id}`)}</div>`).join("")}${!linkedPrompts.length && !linkedInterviews.length ? `<p class="muted">Link supplemental essay prompts or STAR interview stories directly to ${h(a.name)}.</p>` : ""}</div></div>`;
+      return `<div class="two-columns"><div><div class="panel-heading"><h2>A plan for ${h(a.name.split(" ")[0])}.</h2></div><p class="body-copy">Keep your requirements, writing, and next steps together. You decide what’s needed, and Ascend keeps track of your progress.</p><div class="detail-list"><div><span>Application round</span><strong>${h(a.round)}</strong></div><div><span>List tier</span><strong>${h(a.tier || "Not assigned")}</strong></div><div><span>Application pathway</span><strong>${h(a.pathway)}</strong></div><div><span>Deadline</span><strong>${dateLabel(a.deadline, true)}</strong></div><div><span>Portal status</span><strong>${h(a.portalAccess?.status || "Not checked")}${a.portalAccess?.checkedAt ? ` (${dateLabel(a.portalAccess.checkedAt)})` : ""}</strong></div><div><span>Required items completed</span><strong>${checklist.done} of ${checklist.total}</strong></div></div><div class="button-group">${a.url ? link("Open official website", a.url, "btn secondary") : ""}${btn("Verified portal today", `portal-confirm:${a.id}`, "ghost", "check")}</div></div><div class="soft-box"><span class="eyebrow">YOUR NEXT STEP</span><h3>${h(adm.find((r) => !r.done && !r.exempt)?.title || (checklist.complete ? "Admissions checklist complete." : "Make your own checklist."))}</h3><p>Requirements are personal to this application. Check the college’s official site before adding them.</p>${btn("Open requirements", "workspace-tab:Requirements", "secondary", "tasks")}<div class="info-note">${icon("shield")}Your changes here don’t submit anything to a college.</div></div></div><div class="workspace-hub-grid"><div class="soft-box"><div class="panel-heading"><h3>Portal & submission receipts (${linkedReceipts.length})</h3>${btn("Add receipt", `studio-add-for:receipts/${a.id}`, "ghost", "plus")}</div>${linkedReceipts.length ? linkedReceipts.map((r) => `<div class="record-row"><div><strong>${h(r.title)}</strong><small>${h(r.category || "Receipt")}${r.confirmation ? ` · Ref: ${h(r.confirmation)}` : ""}${r.date ? ` · ${dateLabel(r.date, true)}` : ""}</small></div>${ibtn("edit", "Edit receipt", `studio-edit:receipts/${r.id}`)}</div>`).join("") : `<p class="muted">Save confirmation numbers and portal verification dates here.</p>`}${portalTasks.length ? `<div class="portal-steps-mini"><strong>Portal setup tasks</strong>${portalTasks.map((t) => `<div class="record-row"><button type="button" class="task-check ${t.status === "Done" ? "checked" : ""}" data-action="complete-task:${t.id}" aria-label="Complete ${h(t.title)}">${t.status === "Done" ? icon("check") : ""}</button><span>${h(t.title)}</span></div>`).join("")}</div>` : ""}</div><div class="soft-box"><div class="panel-heading"><h3>Supplemental prompts & interviews</h3><div class="button-group">${btn("Add prompt", `studio-add-for:prompts/${a.id}`, "ghost", "plus")}${btn("Practice interview", `studio-add-for:interviewPractice/${a.id}`, "ghost", "plus")}</div></div>${linkedPrompts.map((p) => { const draft = state.essays.find((e) => e.id === p.essayId || e.promptId === p.id); const wc = draft ? words(draft.body) : 0; const over = Number(p.limit) > 0 && wc > Number(p.limit); return `<div class="record-row"><div><strong>${h(p.title)}</strong><small>${h(p.status || "Not Started")}${p.limit ? ` · ${wc}/${p.limit} words` : ""}${over ? ` · <b class="danger-text">${wc - Number(p.limit)} over limit</b>` : ""}</small></div>${draft ? btn("Open draft", `open-essay:${draft.id}`, "ghost") : btn("Write draft", `prompt-draft:${p.id}`, "ghost", "edit")}${ibtn("edit", "Edit prompt", `studio-edit:prompts/${p.id}`)}</div>`; }).join("")}${linkedInterviews.map((iv) => `<div class="record-row"><div><strong>${h(iv.title)}</strong><small>Interview prep · ${h(iv.question || "")}</small></div>${ibtn("edit", "Edit interview prep", `studio-edit:interviewPractice/${iv.id}`)}</div>`).join("")}${!linkedPrompts.length && !linkedInterviews.length ? `<p class="muted">Link supplemental essay prompts or STAR interview stories directly to ${h(a.name)}.</p>` : ""}</div></div>`;
     case "Requirements":
-      return `<div class="panel-heading"><div><h2>Application requirements</h2><p>${progress(a)}% of required weight complete. Financial aid, optional, and exempt items are excluded.</p></div><div class="button-group">${!a.requirements.length ? btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus") : ""}${btn("Add requirement", `add-requirement:${a.id}`, "secondary", "plus")}</div></div>${a.requirements.length ? `<div class="checklist">${admissionsRequirements(a).map((r) => `<div class="checklist-row"><input type="checkbox" aria-label="Complete ${h(r.title)}" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""} ${r.exempt ? "disabled" : ""}><div><strong class="${r.done ? "completed-text" : ""}">${h(r.title)}</strong><small>${r.exempt ? "Not applicable" : r.required === false ? "Optional" : `Required · weight ${r.weight || 1}`}${r.doneAt ? ` · Completed ${dateLabel(r.doneAt)}` : ""}${r.dependsOn ? ` · After ${h(a.requirements.find((x) => x.id === r.dependsOn)?.title || "removed item")}` : ""}</small></div>${ibtn("edit", "Edit requirement", `edit-requirement:${a.id}/${r.id}`)}${ibtn("trash", "Delete requirement", `delete-requirement:${a.id}/${r.id}`)}</div>`).join("")}</div>` : empty("tasks", "A checklist that fits your application.", "Add your own requirements or customize a starter checklist. Nothing is assumed to be required.")}${linkedReceipts.length ? `<div class="panel-heading"><h3>Saved submission receipts</h3>${btn("Add receipt", `studio-add-for:receipts/${a.id}`, "ghost", "plus")}</div><div class="records-list">${linkedReceipts.map((r) => `<div class="record-row"><div><strong>${h(r.title)}</strong><small>${h(r.category || "Submission")}${r.confirmation ? ` · Confirmation: ${h(r.confirmation)}` : ""}${r.date ? ` · ${dateLabel(r.date, true)}` : ""}</small></div>${ibtn("edit", "Edit receipt", `studio-edit:receipts/${r.id}`)}</div>`).join("")}</div>` : ""}`;
+      return `<div class="panel-heading"><div><h2>Application requirements</h2><p>${checklist.percent}% of required weight complete. Financial aid, optional, and exempt items are excluded.</p></div><div class="button-group">${!adm.length ? btn("Use starter checklist", `starter-requirements:${a.id}`, "ghost", "plus") : ""}${btn("Add requirement", `add-requirement:${a.id}`, "secondary", "plus")}</div></div>${adm.length ? `<div class="checklist">${adm.map((r) => `<div class="checklist-row"><input type="checkbox" aria-label="Complete ${h(r.title)}" data-requirement="${r.id}" data-app="${a.id}" ${r.done ? "checked" : ""} ${r.exempt ? "disabled" : ""}><div><strong class="${r.done ? "completed-text" : ""}">${h(r.title)}</strong><small>${r.exempt ? "Not applicable" : r.required === false ? "Optional" : `Required · weight ${r.weight || 1}`}${r.doneAt ? ` · Completed ${dateLabel(r.doneAt)}` : ""}${r.dependsOn ? ` · After ${h(a.requirements.find((x) => x.id === r.dependsOn)?.title || "removed item")}` : ""}</small></div>${ibtn("edit", "Edit requirement", `edit-requirement:${a.id}/${r.id}`)}${ibtn("trash", "Delete requirement", `delete-requirement:${a.id}/${r.id}`)}</div>`).join("")}</div>` : empty("tasks", "A checklist that fits your application.", "Add your own requirements or customize a starter checklist. Nothing is assumed to be required.")}${linkedReceipts.length ? `<div class="panel-heading"><h3>Saved submission receipts</h3>${btn("Add receipt", `studio-add-for:receipts/${a.id}`, "ghost", "plus")}</div><div class="records-list">${linkedReceipts.map((r) => `<div class="record-row"><div><strong>${h(r.title)}</strong><small>${h(r.category || "Submission")}${r.confirmation ? ` · Confirmation: ${h(r.confirmation)}` : ""}${r.date ? ` · ${dateLabel(r.date, true)}` : ""}</small></div>${ibtn("edit", "Edit receipt", `studio-edit:receipts/${r.id}`)}</div>`).join("")}</div>` : ""}`;
     case "Essays":
       return essayList(a.id);
     case "Recommendations":
       return recordsBody("recommendations", a.id);
     case "Documents":
       return documentsBody(a.id);
-    case "Financial Aid":
-      return recordsBody("financial-aid", a.id);
     case "Notes":
       return `<div class="panel-heading"><div><h2>Your thoughts, kept together.</h2><p>Private notes for this college. Changes save automatically.</p></div></div><textarea class="notes-editor" aria-label="College notes" data-app-notes="${a.id}" placeholder="Campus visit thoughts, questions, things that matter to you…">${h(a.notes || "")}</textarea>`;
     case "Decision": {
@@ -756,7 +951,7 @@ function requirementForm(app, id) {
         ["true", "Not applicable"],
       ],
       String(r.exempt),
-    )}${select("Complete after", "dependsOn", [["", "No dependency"], ...app.requirements.filter((x) => x.id !== id).map((x) => [x.id, x.title])], r.dependsOn)}`,
+    )}${select("Complete after", "dependsOn", [["", "No dependency"], ...(isAidRequirement(r) ? app.requirements : admissionsRequirements(app)).filter((x) => x.id !== id).map((x) => [x.id, x.title])], r.dependsOn)}`,
     (v) => {
       // Reject circular dependencies before saving an unusable checklist.
       const seen = new Set(id ? [id] : []);
@@ -806,6 +1001,11 @@ async function loadDirectory(kind) {
     directoryErrors[kind] = e.message;
   } finally {
     directoryLoading[kind] = false;
+    const searchInput = document.querySelector("#global-search");
+    const cmdResults = document.querySelector("#command-results");
+    if (searchInput && cmdResults) {
+      cmdResults.innerHTML = commandResults(searchInput.value);
+    }
     if (
       ["colleges", "high-schools", "college", "compare"].includes(
         route.split("/")[0],
@@ -1079,14 +1279,15 @@ function tasksPage() {
       "Manage your next steps in a list, board, or calendar.",
       btn("Create task", "add-task", "primary", "plus"),
     ) +
-    `<section class="panel"><div class="toolbar"><div class="view-switch">${["List", "Board", "Calendar"].map((v) => `<button data-action="task-view:${v}" class="${taskView === v ? "selected" : ""}">${icon(v === "Calendar" ? "calendar" : v === "Board" ? "compare" : "tasks")}${v}</button>`).join("")}</div><select id="task-filter" aria-label="Filter task status">${["All", "To do", "In Progress", "Done", "Overdue", "Archived"].map((v) => `<option ${v === taskFilter ? "selected" : ""}>${v}</option>`).join("")}</select><select id="task-priority" aria-label="Filter task priority">${["All", "High", "Medium", "Low"].map((v) => `<option ${v === taskPriority ? "selected" : ""} value="${v}">${v === "All" ? "All priorities" : v}</option>`).join("")}</select><select id="task-college" aria-label="Filter by college"><option value="">All colleges</option>${activeApps()
+    `<section class="panel"><div class="toolbar"><div class="view-switch">${["List", "Board", "Calendar"].map((v) => `<button type="button" data-action="task-view:${v}" class="${taskView === v ? "selected" : ""}">${icon(v === "Calendar" ? "calendar" : v === "Board" ? "compare" : "tasks")}${v}</button>`).join("")}</div><select id="task-filter" aria-label="Filter task status">${["All", "To do", "In Progress", "Waiting", "Done", "Overdue", "Archived"].map((v) => `<option ${v === taskFilter ? "selected" : ""}>${v}</option>`).join("")}</select><select id="task-priority" aria-label="Filter task priority">${["All", "High", "Medium", "Low"].map((v) => `<option ${v === taskPriority ? "selected" : ""} value="${v}">${v === "All" ? "All priorities" : v}</option>`).join("")}</select><select id="task-college" aria-label="Filter by college"><option value="">All colleges</option>${activeApps()
       .map(
         (a) =>
           `<option value="${a.id}" ${a.id === taskCollege ? "selected" : ""}>${h(a.name)}</option>`,
       )
       .join("")}</select></div>${
       taskView === "Calendar"
-        ? calendarMarkup(
+        ? `<div class="toolbar calendar-toolbar"><div class="button-group">${ibtn("chevron", "Previous period", "calendar-prev", 'style="transform:rotate(180deg)"')}<h2>${calendarDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2>${ibtn("chevron", "Next period", "calendar-next")}${btn("Today", "calendar-today", "ghost")}</div><div class="view-switch">${["Month", "Week", "Agenda"].map((v) => `<button type="button" data-action="calendar-view:${v}" class="${calendarView === v ? "selected" : ""}">${v}</button>`).join("")}</div></div>` +
+          calendarMarkup(
             list
               .filter((t) => t.due)
               .map((t) => ({
@@ -1105,7 +1306,7 @@ function tasksPage() {
               btn("Create your first task", "add-task", "secondary", "plus"),
             )
           : taskView === "Board"
-            ? `<div class="kanban">${["To do", "In Progress", "Done"]
+            ? `<div class="kanban">${["To do", "In Progress", "Waiting", "Done"]
                 .map(
                   (s) =>
                     `<div class="kanban-column" data-drop-status="${s}"><div class="kanban-heading"><h3>${s}</h3><span>${list.filter((t) => t.status === s).length}</span></div>${list
@@ -1120,7 +1321,8 @@ function tasksPage() {
 }
 function taskCard(t, board = false) {
   const app = state.applications.find((a) => a.id === t.applicationId);
-  return `<div class="task-card ${board ? "board-card" : ""}" draggable="true" data-drag-id="${t.id}" data-drop-task="${t.id}">${!board ? `<input type="checkbox" class="bulk-check" value="${t.id}" aria-label="Select ${h(t.title)}"><span class="drag-grip" aria-hidden="true">${icon("grip")}</span>` : ""}<button class="task-check ${t.status === "Done" ? "checked" : ""}" data-action="complete-task:${t.id}" aria-label="${t.status === "Done" ? "Reopen" : "Complete"} ${h(t.title)}">${t.status === "Done" ? icon("check") : ""}</button><div class="task-info"><button class="task-title ${t.status === "Done" ? "completed-text" : ""}" data-action="edit-task:${t.id}">${h(t.title)}</button><div class="task-meta">${app ? `<span>${h(app.name)}</span>` : "<span>Personal task</span>"}${t.due ? `<span class="${daysUntil(t.due) < 0 && t.status !== "Done" ? "danger-text" : ""}">${dateLabel(t.due)} · ${dueLabel(t.due)}</span>` : ""}${t.recurrence && t.recurrence !== "Never" ? `<span>↻ ${h(t.recurrence)}</span>` : ""}${t.subtasks?.length ? `<span>${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length} steps</span>` : ""}</div></div><span class="priority ${t.priority?.toLowerCase()}">${h(t.priority || "Medium")}</span>${ibtn("edit", "Edit task", `edit-task:${t.id}`)}</div>`;
+  const priority = t.priority || "Medium";
+  return `<div class="task-card ${board ? "board-card" : ""}" draggable="true" data-drag-id="${t.id}" data-drop-task="${t.id}">${!board ? `<input type="checkbox" class="bulk-check" value="${t.id}" aria-label="Select ${h(t.title)}"><span class="drag-grip" aria-hidden="true">${icon("grip")}</span>` : ""}<button type="button" class="task-check ${t.status === "Done" ? "checked" : ""}" data-action="complete-task:${t.id}" aria-label="${t.status === "Done" ? "Reopen" : "Complete"} ${h(t.title)}">${t.status === "Done" ? icon("check") : ""}</button><div class="task-info"><button type="button" class="task-title ${t.status === "Done" ? "completed-text" : ""}" data-action="edit-task:${t.id}">${h(t.title)}</button><div class="task-meta">${app ? `<span>${h(app.name)}</span>` : "<span>Personal task</span>"}${t.due ? `<span class="${daysUntil(t.due) < 0 && t.status !== "Done" ? "danger-text" : ""}">${dateLabel(t.due)} · ${dueLabel(t.due)}</span>` : ""}${t.recurrence && t.recurrence !== "Never" ? `<span>↻ ${h(t.recurrence)}</span>` : ""}${t.subtasks?.length ? `<span>${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length} steps</span>` : ""}</div></div><span class="priority ${h(priority.toLowerCase())}">${h(priority)}</span>${ibtn("edit", "Edit task", `edit-task:${t.id}`)}</div>`;
 }
 function taskForm(id) {
   const t = state.tasks.find((t) => t.id === id) || {
@@ -1136,7 +1338,7 @@ function taskForm(id) {
   };
   formDialog(
     id ? "Edit task" : "Create task",
-    `${field("What needs doing?", "title", t.title, "text", 'required maxlength="200"')}${appSelect(t.applicationId)}${select("Task type", "category", ["General", "Portal setup", "Application work", "Financial aid", "Follow-up", "Final review"], t.category || "General")}${field("Due date", "due", t.due, "date")}${field("Due time (optional)", "time", t.time, "time")}${select("Priority", "priority", ["Low", "Medium", "High"], t.priority)}${select("Status", "status", ["To do", "In Progress", "Done"], t.status)}${select("Repeat", "recurrence", ["Never", "Daily", "Weekly", "Monthly"], t.recurrence)}${select("Time zone", "timezone", timezones(t.timezone), t.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}${textarea("Subtasks (one per line; use [x] for completed)", "subtaskText", (t.subtasks || []).map((s) => `${s.done ? "[x] " : ""}${s.title}`).join("\n"))}${textarea("Notes & links", "notes", t.notes)}`,
+    `${field("What needs doing?", "title", t.title, "text", 'required maxlength="200"')}${appSelect(t.applicationId)}${select("Task type", "category", ["General", "Portal setup", "Application work", "Financial aid", "Follow-up", "Final review"], t.category || "General")}${field("Due date", "due", t.due, "date")}${field("Due time (optional)", "time", t.time, "time")}${select("Priority", "priority", ["Low", "Medium", "High"], t.priority)}${select("Status", "status", ["To do", "In Progress", "Waiting", "Done"], t.status)}${select("Repeat", "recurrence", ["Never", "Daily", "Weekly", "Monthly"], t.recurrence)}${select("Time zone", "timezone", timezones(t.timezone), t.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}${textarea("Subtasks (one per line; use [x] for completed)", "subtaskText", (t.subtasks || []).map((s) => `${s.done ? "[x] " : ""}${s.title}`).join("\n"))}${textarea("Notes & links", "notes", t.notes)}`,
     (v) =>
       mutate(() => {
         const r = id ? t : { id: uid(), created: Date.now() };
@@ -1235,8 +1437,8 @@ function calendarMarkup(events) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
       const key = localDate(d);
-      return `<div class="calendar-day ${d.getMonth() !== calendarDate.getMonth() ? "other-month" : ""} ${key === today() ? "today" : ""}"><button data-action="deadline-on:${key}" aria-label="Add deadline ${dateLabel(key, true)}">${d.getDate()}</button>${events
-        .filter((e) => e.date === key)
+      return `<div class="calendar-day ${d.getMonth() !== calendarDate.getMonth() ? "other-month" : ""} ${key === today() ? "today" : ""}"><button type="button" data-action="deadline-on:${key}" aria-label="Add deadline ${dateLabel(key, true)}">${d.getDate()}</button>${events
+        .filter((e) => e.date <= key && (e.endDate || e.date) >= key)
         .map(
           (e) =>
             `<a href="#${e.target}" class="calendar-event ${e.kind === "Application" ? "blue" : "mint"}" title="${h(e.title)}">${h(e.title)}</a>`,
@@ -1272,8 +1474,8 @@ function essayList(applicationId) {
   const prompts = (state.prompts || []).filter((p) => p.applicationId === applicationId);
   return `<div class="panel-heading"><div><h2>Essays & supplemental prompts</h2><p>Drafts save locally as you write. Reuse drafts across prompts and check word limits per school.</p></div><div class="button-group">${btn("Add prompt", `studio-add-for:prompts/${applicationId}`, "ghost", "plus")}${btn("New essay", `add-essay:${applicationId}`, "secondary", "plus")}</div></div>${prompts.length ? `<div class="workspace-list" style="margin-bottom:14px">${prompts.map((p) => { const linked = state.essays.find((e) => e.id === p.essayId || e.promptId === p.id); const over = linked && Number(p.limit) > 0 && words(linked.body) > Number(p.limit); return `<div class="record-row static"><div><strong>${h(p.title)}</strong><small>${h(p.category || "Supplement")}${p.limit ? ` · ${h(p.limit)} word limit` : ""}${linked ? ` · Linked: ${h(linked.title)} (${words(linked.body)} words)` : " · No draft linked"}</small>${p.body ? `<p class="muted" style="margin:4px 0 0">${h(p.body)}</p>` : ""}</div><div class="row-actions">${over ? badge("Over limit") : badge(p.status || "Not Started")}${linked ? btn("Open draft", `open-essay:${linked.id}`, "ghost", "edit") : btn("Start draft", `prompt-draft:${p.id}`, "ghost", "plus")}${ibtn("edit", "Edit prompt", `studio-edit:prompts/${p.id}`)}</div></div>`; }).join("")}</div>` : ""}${list.length ? list.map((e) => `<button class="record-row" data-action="open-essay:${e.id}">${icon("edit")}<span><strong>${h(e.title)}</strong><small>${words(e.body)} words · ${h(e.category)}</small></span>${icon("arrow")}</button>`).join("") : empty("edit", "Start with a few words.", "Create a draft and give your story a little space.")}`;
 }
-function essaysPage() {
-  let list = state.essays.filter(
+function filteredEssays() {
+  return state.essays.filter(
     (e) =>
       (!essayQuery ||
         [e.title, e.body, e.tags]
@@ -1282,9 +1484,28 @@ function essaysPage() {
           .includes(essayQuery.toLowerCase())) &&
       (!essayCategory || e.category === essayCategory),
   );
-  if (!selectedEssay && list.length) selectedEssay = list[0].id;
+}
+function essayListMarkup(list = filteredEssays()) {
+  return (
+    list
+      .map(
+        (e) =>
+          `<button type="button" class="essay-item ${e.id === selectedEssay ? "selected" : ""}" data-action="select-essay:${h(e.id)}">${icon("file")}<span><strong>${h(e.title)}</strong><small>${h(e.category)} · ${words(e.body)} words</small></span></button>`,
+      )
+      .join("") || '<p class="muted library-empty">Your next draft starts here.</p>'
+  );
+}
+function essaysPage() {
+  const list = filteredEssays();
+  if (
+    (!selectedEssay || !state.essays.some((e) => e.id === selectedEssay)) &&
+    list.length
+  )
+    selectedEssay = list[0].id;
   const selected = state.essays.find((e) => e.id === selectedEssay);
   const reuseChecks = selected ? essayPromptWarnings(selected, state.prompts || [], state.applications) : [];
+  const limitNum = Number(selected?.limit);
+  const hasLimit = Number.isFinite(limitNum) && limitNum > 0;
   return (
     header(
       "Essay studio",
@@ -1294,11 +1515,11 @@ function essaysPage() {
     ) +
     `<section class="panel writing-workspace"><aside class="essay-library"><label class="search-field">${icon("search")}<input id="essay-search" value="${h(essayQuery)}" placeholder="Find a draft…" aria-label="Search essays"></label><select id="essay-category" aria-label="Essay category"><option value="">All writing</option>${essayCategories()
       .map(
-        (c) => `<option ${c === essayCategory ? "selected" : ""}>${c}</option>`,
+        (c) => `<option ${c === essayCategory ? "selected" : ""}>${h(c)}</option>`,
       )
       .join(
         "",
-      )}</select><div class="essay-list">${list.map((e) => `<button class="essay-item ${e.id === selectedEssay ? "selected" : ""}" data-action="select-essay:${e.id}">${icon("file")}<span><strong>${h(e.title)}</strong><small>${h(e.category)} · ${words(e.body)} words</small></span></button>`).join("") || '<p class="muted library-empty">Your next draft starts here.</p>'}</div></aside><div class="essay-main">${selected ? `<div class="editor-toolbar"><span id="save-state" class="local-label">${icon("shield")} Saved locally</span><div class="button-group">${ibtn("edit", "Edit essay details", `edit-essay:${selected.id}`)}${btn("Review", `extra-review:${selected.id}`, "ghost", "tasks")}${btn("Versions", `essay-versions:${selected.id}`, "ghost", "clock")}${btn("Export", `essay-export:${selected.id}`, "secondary", "download")}</div></div><div class="essay-paper"><span class="eyebrow">${h(selected.category)}</span><h2>${h(selected.title)}</h2>${selected.prompt ? `<p class="essay-prompt">${h(selected.prompt)}</p>` : ""}${reuseChecks.length ? `<div class="reuse-banner">${reuseChecks.map((w) => `<span class="badge ${w.overBy > 0 ? "coral" : "mint"}">${h(w.school)}: ${w.words}${w.limit ? `/${w.limit}` : ""}w${w.overBy > 0 ? ` (+${w.overBy} over)` : ""}</span>`).join("")}</div>` : ""}<textarea id="essay-editor" data-essay-id="${selected.id}" placeholder="Start anywhere. A memory, a moment, a sentence…" aria-label="Essay draft" spellcheck="true">${h(selected.body || "")}</textarea></div><div class="editor-footer"><span id="word-counter">${words(selected.body)}${selected.limit ? ` / ${selected.limit}` : ""} words · ${(selected.body || "").length} characters</span><span>${selected.limit && words(selected.body) > selected.limit ? "Over your word limit" : reuseChecks.some((w) => w.overBy > 0) ? "Over a linked school prompt limit" : "Saved in this browser"}</span></div>` : empty("edit", "There’s a story only you can tell.", "Start a new essay. Your words stay in this browser.", btn("Create your first draft", "add-essay:", "secondary", "plus"))}</div></section>`
+      )}</select><div class="essay-list">${essayListMarkup(list)}</div></aside><div class="essay-main">${selected ? `<div class="editor-toolbar"><span id="save-state" class="local-label">${icon("shield")} Saved locally</span><div class="button-group">${ibtn("edit", "Edit essay details", `edit-essay:${h(selected.id)}`)}${btn("Review", `extra-review:${h(selected.id)}`, "ghost", "tasks")}${btn("Versions", `essay-versions:${h(selected.id)}`, "ghost", "clock")}${btn("Export", `essay-export:${h(selected.id)}`, "secondary", "download")}</div></div><div class="essay-paper"><span class="eyebrow">${h(selected.category)}</span><h2>${h(selected.title)}</h2>${selected.prompt ? `<p class="essay-prompt">${h(selected.prompt)}</p>` : ""}${reuseChecks.length ? `<div class="reuse-banner">${reuseChecks.map((w) => `<span class="badge ${w.overBy > 0 ? "coral" : "mint"}">${h(w.school)}: ${w.words}${w.limit ? `/${w.limit}` : ""}w${w.overBy > 0 ? ` (+${w.overBy} over)` : ""}</span>`).join("")}</div>` : ""}<textarea id="essay-editor" data-essay-id="${h(selected.id)}" placeholder="Start anywhere. A memory, a moment, a sentence…" aria-label="Essay draft" spellcheck="true">${h(selected.body || "")}</textarea></div><div class="editor-footer"><span id="word-counter">${words(selected.body)}${hasLimit ? ` / ${h(limitNum)}` : ""} words · ${(selected.body || "").length} characters</span><span>${hasLimit && words(selected.body) > limitNum ? "Over your word limit" : reuseChecks.some((w) => w.overBy > 0) ? "Over a linked school prompt limit" : "Saved in this browser"}</span></div>` : empty("edit", "There’s a story only you can tell.", "Start a new essay. Your words stay in this browser.", btn("Create your first draft", "add-essay:", "secondary", "plus"))}</div></section>`
   );
 }
 function essayCategories() {
@@ -1359,30 +1580,59 @@ function essayForm(id = "", applicationId = "") {
         `<div class="full">${btn("Delete essay", `delete-essay:${id}`, "danger", "trash")}</div>`,
       );
 }
+function resizeEssayEditor(el) {
+  if (!el || globalThis.CSS?.supports?.("field-sizing", "content")) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.max(380, el.scrollHeight)}px`;
+}
 function connectEditor() {
   const el = document.querySelector("#essay-editor");
   if (!el) return;
+  resizeEssayEditor(el);
+  const syncFooter = (e, statusText, isSaved = true) => {
+    const saveState = document.querySelector("#save-state");
+    if (saveState) {
+      saveState.innerHTML = isSaved
+        ? `${icon("shield")} ${h(statusText)}`
+        : h(statusText);
+    }
+    const limitNum = Number(e.limit);
+    const hasLimit = Number.isFinite(limitNum) && limitNum > 0;
+    const counter = document.querySelector("#word-counter");
+    if (counter)
+      counter.textContent = `${words(e.body)}${hasLimit ? ` / ${limitNum}` : ""} words · ${e.body.length} characters`;
+    const footerStatus = document.querySelector(".editor-footer>span:last-child");
+    if (footerStatus)
+      footerStatus.textContent =
+        hasLimit && words(e.body) > limitNum
+          ? "Over your word limit"
+          : statusText;
+    const sidebarSmall = document.querySelector(
+      `.essay-item[data-action="select-essay:${CSS.escape(e.id)}"] small`,
+    );
+    if (sidebarSmall)
+      sidebarSmall.textContent = `${e.category} · ${words(e.body)} words`;
+  };
   el.addEventListener("input", () => {
-    const e = state.essays.find((e) => e.id === el.dataset.essayId);
+    resizeEssayEditor(el);
+    const e = state.essays.find((x) => x.id === el.dataset.essayId);
     if (!e) return;
     const before = e.body;
     e.body = el.value;
     e.updated = Date.now();
-    if (save()) {
-      document.querySelector("#save-state").innerHTML =
-        `${icon("shield")} Saved locally`;
-      document.querySelector("#word-counter").textContent =
-        `${words(e.body)}${e.limit ? ` / ${e.limit}` : ""} words · ${e.body.length} characters`;
-      document.querySelector(".editor-footer>span:last-child").textContent =
-        e.limit && words(e.body) > Number(e.limit)
-          ? "Over your word limit"
-          : "Saved in this browser";
-    } else {
-      e.body = before;
-      document.querySelector("#save-state").textContent =
-        "Not saved — storage unavailable";
-    }
+    syncFooter(e, "Saving…", true);
+    scheduleEditorSave(() => {
+      const current = state.essays.find((x) => x.id === el.dataset.essayId);
+      if (!current) return;
+      if (save()) {
+        syncFooter(current, "Saved locally", true);
+      } else {
+        current.body = before;
+        syncFooter(current, "Not saved — storage unavailable", false);
+      }
+    });
   });
+  el.addEventListener("blur", flushPendingEditorSave);
 }
 function essayVersions(id) {
   const e = state.essays.find((e) => e.id === id);
@@ -1478,13 +1728,14 @@ function uploadDocument(applicationId = "") {
 }
 function previewDocument(id) {
   const d = state.documents.find((x) => x.id === id);
+  if (!d) return;
   let content;
   if (d.type.startsWith("image/"))
     content = `<img class="document-preview" src="${d.data}" alt="${h(d.name)}">`;
   else if (d.type === "text/plain")
     content = `<pre class="text-preview">${h(new TextDecoder().decode(Uint8Array.from(atob(d.data.split(",")[1]), (c) => c.charCodeAt(0))))}</pre>`;
   else
-    content = `<div class="empty-state"><div class="empty-icon">${icon("file")}</div><h3>${h(d.name)}</h3><p>Download this ${fileTypes[d.type]} to open it with your preferred viewer.</p>${btn("Download document", `download-document:${id}`, "secondary", "download")}</div>`;
+    content = `<div class="empty-state"><div class="empty-icon">${icon("file")}</div><h3>${h(d.name)}</h3><p>Download this ${h(fileTypes[d.type] || "file")} to open it with your preferred viewer.</p>${btn("Download document", `download-document:${id}`, "secondary", "download")}</div>`;
   dialog(
     `<div class="dialog-heading"><h2>${h(d.name)}</h2>${ibtn("x", "Close preview", "close-dialog")}</div>${content}`,
     true,
@@ -1535,8 +1786,10 @@ function aidPage(page) {
   const legacy=list.filter(r=>r.legacy),filing=page==="css-profile"?cssSubmissionSummary(state):null;
   const heading=filing?.submitted?"CSS Profile submitted":`${done} of ${list.length} items complete`;
   const description=filing?.submitted?`College Board confirms submission on ${dateLabel(filing.date,true)} to ${filing.schools.length} schools. ${filing.received} school receipts confirmed; the remaining receipt checks stay separate from your completed filing.`:"Track your filing and each school's receipt. Submitted and received are separate steps.";
+  const ringPercent=list.length?done/list.length*100:0;
+  const ringCaption=filing?.submitted&&done===list.length?"filing complete":"checklist complete";
   return header(c.title, page==="fafsa"?"Your federal aid application, with a space of its own.":"Your CSS Profile and school delivery checklist, together.",link("Open official website",url,"btn primary")+btn("Add item",`add-record:${page}`,"secondary","plus"))+
-    `<section class="aid-intro panel"><div><span class="eyebrow">FINANCIAL AID · SEPARATE FROM ADMISSIONS</span><h2>${heading}</h2><p>${h(description)}</p><div class="aid-tabs"><a href="#fafsa" class="btn ${page==="fafsa"?"primary":"secondary"}">FAFSA</a><a href="#css-profile" class="btn ${page==="css-profile"?"primary":"secondary"}">CSS Profile</a><a href="#financial-aid" class="btn secondary">Other aid documents</a></div></div>${progressRing(list.length?done/list.length*100:0,`${c.title} completion`,{className:"aid-progress-orb",tone:page,caption:filing?.submitted?"filing complete":"checklist complete"})}</section><section class="panel">${recordsBody(page)}${legacy.length?`<div class="panel-heading"><h2>From older application checklists</h2></div><div class="records-list">${legacy.map(r=>`<article class="record-row"><div class="record-info"><strong>${h(r.title)}</strong><small>${h(state.applications.find(a=>a.id===r.applicationId)?.name||"")}</small></div>${badge(r.status)}${btn("Edit",`edit-requirement:${r.applicationId}/${r.id}`,"secondary","edit")}</article>`).join("")}</div>`:""}</section><div class="info-note">${icon("shield")}Your admission checklists stay complete while you work on financial aid. This tracker does not file aid applications or verify eligibility.</div>`;
+    `<section class="aid-intro panel"><div><span class="eyebrow">FINANCIAL AID · SEPARATE FROM ADMISSIONS</span><h2>${heading}</h2><p>${h(description)}</p><div class="aid-tabs"><a href="#fafsa" class="btn ${page==="fafsa"?"primary":"secondary"}">FAFSA</a><a href="#css-profile" class="btn ${page==="css-profile"?"primary":"secondary"}">CSS Profile</a><a href="#financial-aid" class="btn secondary">Other aid documents</a></div></div>${progressRing(ringPercent,`${c.title} completion`,{className:"aid-progress-orb",tone:page,caption:ringCaption})}</section><section class="panel">${recordsBody(page, undefined, legacy.length)}${legacy.length?`<div class="panel-heading"><h2>From older application checklists</h2></div><div class="records-list">${legacy.map(r=>`<article class="record-row"><div class="record-info"><strong>${h(r.title)}</strong><small>${h(state.applications.find(a=>a.id===r.applicationId)?.name||"")}</small></div>${badge(r.status)}${btn("Edit",`edit-requirement:${r.applicationId}/${r.id}`,"secondary","edit")}</article>`).join("")}</div>`:""}</section><div class="info-note">${icon("shield")}Your admission checklists stay complete while you work on financial aid. This tracker does not file aid applications or verify eligibility.</div>`;
 }
 function recordsPage(page) {
   const c = config[page];
@@ -1549,12 +1802,13 @@ function recordsPage(page) {
     `<section class="panel">${recordsBody(page)}</section>${page === "financial-aid" ? offersSection() : ""}${page === "scholarships" ? `<div class="source-note">${icon("book")}<span>Discover opportunities at ${link("CareerOneStop", "https://www.careeronestop.org/toolkit/training/find-scholarships.aspx")} and ${link("Federal Student Aid", "https://studentaid.gov/understand-aid/types/scholarships")}. Ascend doesn’t invent opportunities, awards, or deadlines.</span></div>` : ""}`
   );
 }
-function recordsBody(page, applicationId) {
+function recordsBody(page, applicationId, legacyCount = 0) {
   const c = config[page];
   const list = state[c.key].filter(
     (r) => (!applicationId || r.applicationId === applicationId) && (!c.category || aidRecords({aid:[r],applications:[]},c.category).length),
   );
-  return `<div class="panel-heading"><div><h2>${page === "recommendations" ? "Your support circle" : c.key === "aid" ? (c.category ? c.title + " checklist" : "The financial aid checklist") : page === "scholarships" ? "Your scholarship list" : "Your notebook"}</h2><p>${list.length} ${list.length === 1 ? c.noun : `${c.noun}s`}</p></div>${applicationId ? btn(`Add ${c.noun}`, `add-record:${page}/${applicationId}`, "secondary", "plus") : ""}</div>${list.length ? `<div class="records-list">${list.map((r) => `<article class="record-row">${icon(c.icon)}<div class="record-info"><button class="record-title" data-action="edit-record:${page}/${r.id}">${h(r.title || r.name)}</button><small>${h(r.role || r.category || r.tags || "Personal record")}${r.applicationId ? ` · ${h(state.applications.find((a) => a.id === r.applicationId)?.name || "Removed application")}` : ""}${r.due ? ` · ${dateLabel(r.due)} · ${dueLabel(r.due)}` : ""}</small>${r.body || r.notes ? `<p class="record-preview">${h((r.body || r.notes).slice(0, 160))}</p>` : ""}</div>${r.status ? badge(r.status) : ""}${r.amount ? `<strong>${money(r.amount)}</strong>` : ""}${ibtn("edit", `Edit ${c.noun}`, `edit-record:${page}/${r.id}`)}${ibtn("trash", `Delete ${c.noun}`, `delete-record:${page}/${r.id}`)}</article>`).join("")}</div>` : empty(c.icon, page === "recommendations" ? "You don’t have to do it alone." : page === "notes" ? "A fresh page for your ideas." : "A little organization goes a long way.", page === "recommendations" ? "Add a teacher, counselor, or mentor and track your requests." : "Add your first record when you’re ready.", btn(`Add ${c.noun}`, `add-record:${page}/${applicationId || ""}`, "secondary", "plus"))}`;
+  const totalCount = list.length + legacyCount;
+  return `<div class="panel-heading"><div><h2>${page === "recommendations" ? "Your support circle" : c.key === "aid" ? (c.category ? c.title + " checklist" : "The financial aid checklist") : page === "scholarships" ? "Your scholarship list" : "Your notebook"}</h2><p>${totalCount} ${totalCount === 1 ? c.noun : `${c.noun}s`}</p></div>${applicationId ? btn(`Add ${c.noun}`, `add-record:${page}/${applicationId}`, "secondary", "plus") : ""}</div>${list.length ? `<div class="records-list">${list.map((r) => `<article class="record-row">${icon(c.icon)}<div class="record-info"><button type="button" class="record-title" data-action="edit-record:${page}/${r.id}">${h(r.title || r.name)}</button><small>${h(r.role || r.category || r.tags || "Personal record")}${r.applicationId ? ` · ${h(state.applications.find((a) => a.id === r.applicationId)?.name || "Removed application")}` : ""}${r.due ? ` · ${dateLabel(r.due)} · ${dueLabel(r.due)}` : ""}</small>${r.body || r.notes ? `<p class="record-preview">${h((r.body || r.notes).slice(0, 160))}</p>` : ""}</div>${r.status ? badge(r.status) : ""}${r.amount ? `<strong>${money(r.amount)}</strong>` : ""}${ibtn("edit", `Edit ${c.noun}`, `edit-record:${page}/${r.id}`)}${ibtn("trash", `Delete ${c.noun}`, `delete-record:${page}/${r.id}`)}</article>`).join("")}</div>` : legacyCount ? "" : empty(c.icon, page === "recommendations" ? "You don’t have to do it alone." : page === "notes" ? "A fresh page for your ideas." : "A little organization goes a long way.", page === "recommendations" ? "Add a teacher, counselor, or mentor and track your requests." : "Add your first record when you’re ready.", btn(`Add ${c.noun}`, `add-record:${page}/${applicationId || ""}`, "secondary", "plus"))}`;
 }
 function recordForm(page, id = "", applicationId = "") {
   const c = config[page],
@@ -1663,6 +1917,17 @@ function recordForm(page, id = "", applicationId = "") {
         ],
         r.status,
       ) +
+      field("Submission date (optional)", "submissionDate", r.submissionDate || "", "date") +
+      select(
+        "School receipt status",
+        "receiptStatus",
+        [
+          ["", "Not tracked"],
+          ["Not verified", "Not verified"],
+          ["Received", "Received"],
+        ],
+        r.receiptStatus || "",
+      ) +
       field("Official source URL", "url", r.url);
   if (page === "notes")
     fields +=
@@ -1688,12 +1953,40 @@ function recordForm(page, id = "", applicationId = "") {
   );
 }
 function offersSection() {
+  const fmtSubtract = (raw) => {
+    const n = Number(raw || 0);
+    if (!Number.isFinite(n)) return "Not available";
+    if (n === 0) return money(0);
+    return n < 0 ? money(-n) : `− ${money(n)}`;
+  };
   return `<section class="panel offers-panel"><div class="panel-heading"><div><h2>See the whole picture.</h2><p>Compare your own estimates and confirmed offers across 1 year and 4 years. Loans are borrowing; work-study is earned.</p></div>${btn("Add offer", "add-offer", "secondary", "plus")}</div>${
     state.offers.length
       ? `<div class="offer-grid">${state.offers
           .map((o) => {
+            const appName = state.applications.find(
+              (a) => a.id === o.applicationId,
+            )?.name;
+            const heading = appName || o.title || "College offer";
+            const subtitle = appName && o.title ? o.title : "";
+            const cost = Number(o.cost);
+            const grants = Number(o.grants || 0);
+            const scholarships = Number(o.scholarships || 0);
+            const hasValidNet =
+              o.cost !== undefined &&
+              o.cost !== null &&
+              o.cost !== "" &&
+              Number.isFinite(cost) &&
+              Number.isFinite(grants) &&
+              Number.isFinite(scholarships);
             const costCalc = fourYearNetCost(o);
-            return `<article class="offer-card"><div class="eyebrow">${h(o.verification || "Estimate")} · ${h(o.year || "Year not set")}</div><h3>${h(state.applications.find((a) => a.id === o.applicationId)?.name || o.title || "College offer")}</h3><div class="detail-list"><div><span>Cost of attendance</span><strong>${money(costCalc.annualCoa)}</strong></div><div><span>Gift aid (grants + scholarships)</span><strong>− ${money(costCalc.annualGiftAid)}</strong></div><div class="net-cost"><span>Net annual cost</span><strong>${money(costCalc.annualNetPrice)}</strong></div><div class="net-cost"><span>4-year net cost (est.)</span><strong>${money(costCalc.fourYearNetPrice)}</strong></div><div><span>Loans offered (borrowed)</span><strong>${money(costCalc.annualLoans)}/yr · ${money(costCalc.fourYearLoans)}/4yr</strong></div><div><span>Work-study (earned)</span><strong>${money(costCalc.annualWorkStudy)}/yr</strong></div><div><span>Out-of-pocket after loans/work</span><strong>${money(costCalc.annualOutOfPocket)}/yr</strong></div></div><div class="button-group">${btn("Edit", `edit-offer:${o.id}`, "ghost", "edit")}${ibtn("trash", "Delete offer", `delete-offer:${o.id}`)}</div></article>`;
+            const rawNet = hasValidNet ? cost - grants - scholarships : NaN;
+            const netDisplay =
+              !hasValidNet
+                ? "Not available"
+                : rawNet < 0
+                  ? `${money(0)} (${money(-rawNet)} surplus)`
+                  : money(costCalc.annualNetPrice);
+            return `<article class="offer-card"><div class="eyebrow">${h(o.verification || "Estimate")} · ${h(o.year || "Year not set")}</div><h3>${h(heading)}</h3>${subtitle ? `<p class="muted">${h(subtitle)}</p>` : ""}<div class="detail-list"><div><span>Cost of attendance</span><strong>${hasValidNet ? money(costCalc.annualCoa) : money(o.cost)}</strong></div><div><span>Gift aid (grants + scholarships)</span><strong>${fmtSubtract(costCalc.annualGiftAid)}</strong></div><div class="net-cost"><span>Net annual cost</span><strong>${netDisplay}</strong></div><div class="net-cost"><span>4-year net cost (est.)</span><strong>${hasValidNet ? money(costCalc.fourYearNetPrice) : "Not available"}</strong></div><div><span>Loans offered (borrowed)</span><strong>${money(costCalc.annualLoans)}/yr · ${money(costCalc.fourYearLoans)}/4yr</strong></div><div><span>Work-study (earned)</span><strong>${money(costCalc.annualWorkStudy)}/yr</strong></div><div><span>Out-of-pocket after loans/work</span><strong>${hasValidNet ? `${money(costCalc.annualOutOfPocket)}/yr` : "Not available"}</strong></div></div>${o.notes ? `<p class="collection-description">${h(o.notes)}</p>` : ""}<div class="button-group">${btn("Edit", `edit-offer:${o.id}`, "ghost", "edit")}${ibtn("trash", "Delete offer", `delete-offer:${o.id}`)}</div></article>`;
           })
           .join("")}</div>`
       : empty(
@@ -1725,7 +2018,7 @@ function comparePage() {
     .map((id) => schoolRecords("colleges").find((c) => c.id === id))
     .filter(Boolean);
   const fields = [
-    ["Location", (c) => `${c.city}, ${c.state}`],
+    ["Location", (c) => [c.city, c.state].filter(Boolean).join(", ")],
     ["Institution type", (c) => c.type],
     ["Degree level", (c) => c.level],
     ["Campus setting", (c) => c.campusSetting],
@@ -1769,7 +2062,7 @@ function comparePage() {
     ) +
     `<section class="panel compare-panel">${
       colleges.length
-        ? `<div class="compare-scroll"><table class="compare-table"><thead><tr><th>THE DETAILS THAT MATTER</th>${colleges.map((c) => `<th>${monogram(c.name)}<a href="#college/${c.id}">${h(c.name)}</a>${ibtn("x", "Remove from comparison", `compare-add:${c.id}`)}</th>`).join("")}</tr></thead><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th>${colleges.map((c) => `<td>${h(value(c) || "Not available")}</td>`).join("")}</tr>`).join("")}<tr><th>Your personal fit (1–5)<small>Your own rating, never an admissions probability.</small></th>${colleges.map((c) => `<td><label class="field"><span>Academic fit</span><input type="range" min="1" max="5" value="${state.profile.fit?.[c.id]?.academic || 3}" data-fit="${c.id}/academic" aria-label="Academic fit ${h(c.name)}"></label><label class="field"><span>Affordability</span><input type="range" min="1" max="5" value="${state.profile.fit?.[c.id]?.cost || 3}" data-fit="${c.id}/cost" aria-label="Affordability ${h(c.name)}"></label><label class="field"><span>Campus fit</span><input type="range" min="1" max="5" value="${state.profile.fit?.[c.id]?.campus || 3}" data-fit="${c.id}/campus" aria-label="Campus fit ${h(c.name)}"></label><strong class="fit-score">${fitScore(c.id)} / 5</strong></td>`).join("")}</tr></tbody></table></div><div class="toolbar"><span class="muted">Personal fit weights</span>${[
+        ? `<div class="compare-scroll"><table class="compare-table"><thead><tr><th>THE DETAILS THAT MATTER</th>${colleges.map((c) => `<th>${monogram(c.name)}<a href="#college/${c.id}">${h(c.name)}</a>${ibtn("x", "Remove from comparison", `compare-add:${c.id}`)}</th>`).join("")}</tr></thead><tbody>${fields.map(([label, value]) => `<tr><th>${label}</th>${colleges.map((c) => `<td>${h(value(c) || "Not available")}</td>`).join("")}</tr>`).join("")}<tr><th>Your personal fit (1–5)<small>Your own rating, never an admissions probability.</small></th>${colleges.map((c) => `<td><label class="field"><span>Academic fit</span><input type="range" min="1" max="5" value="${state.profile.fit?.[c.id]?.academic || 3}" data-fit="${c.id}/academic" aria-label="Academic fit ${h(c.name)}"></label><label class="field"><span>Affordability</span><input type="range" min="1" max="5" value="${state.profile.fit?.[c.id]?.cost || 3}" data-fit="${c.id}/cost" aria-label="Affordability ${h(c.name)}"></label><label class="field"><span>Campus fit</span><input type="range" min="1" max="5" value="${state.profile.fit?.[c.id]?.campus || 3}" data-fit="${c.id}/campus" aria-label="Campus fit ${h(c.name)}"></label><strong class="fit-score" data-fit-score="${h(c.id)}">${fitScore(c.id)} / 5</strong></td>`).join("")}</tr></tbody></table></div><div class="toolbar"><span class="muted">Personal fit weights</span>${[
             ["academic", "Academics"],
             ["cost", "Cost"],
             ["campus", "Campus"],
@@ -1850,7 +2143,7 @@ function analyticsPage() {
             "Your journey is just beginning.",
             "Your application activity will appear here as you build your list.",
           )
-    }<div class="analytics-totals"><div><strong>${done}</strong><span>Tasks completed</span></div><div><strong>${state.essays.length}</strong><span>Essay drafts</span></div><div><strong>${state.essays.reduce((n, e) => n + words(e.body), 0).toLocaleString()}</strong><span>Words written</span></div><div><strong>${apps.length ? Math.round(apps.reduce((n, a) => n + progress(a), 0) / apps.length) : 0}%</strong><span>Average checklist progress</span></div></div></section>`
+    }<div class="analytics-totals"><div><strong>${done}</strong><span>Tasks completed</span></div><div><strong>${state.essays.length}</strong><span>Essay drafts</span></div><div><strong>${state.essays.reduce((n, e) => n + words(e.body), 0).toLocaleString()}</strong><span>Words written</span></div><div><strong>${apps.length ? Math.round(apps.reduce((n, a) => n + applicationChecklist(a).percent, 0) / apps.length) : 0}%</strong><span>Average checklist progress</span></div></div></section>`
   );
 }
 function resourcesPage() {
@@ -2014,9 +2307,13 @@ function commandResults(query) {
         ["Create task", "add-task", "tasks"],
         ["New essay", "add-essay:", "edit"],
         ["Upload document", "upload-document:", "upload"],
+        ["View reminders", "notifications", "bell"],
       ],
     ]);
   } else {
+    if ("reminders notifications".includes(q)) {
+      groups.push(["QUICK ACTIONS", [["View reminders", "notifications", "bell"]]]);
+    }
     for (const [key, title, routePrefix] of [
       ["applications", "APPLICATIONS", "application/"],
       ["tasks", "TASKS", "tasks"],
@@ -2077,11 +2374,14 @@ function commandResults(query) {
         .filter((c) => fuzzyMatch(q, c))
         .sort((a, b) => searchRank(q, b) - searchRank(q, a))
         .slice(0, 5)
-        .map((c) => [
-          `${c.name} · ${c.city}, ${c.state}`,
-          kind === "colleges" ? `nav:college/${c.id}` : `select-school:${c.id}`,
-          "school",
-        ]);
+        .map((c) => {
+          const loc = [c.city, c.state].filter(Boolean).join(", ");
+          return [
+            loc ? `${c.name} · ${loc}` : c.name,
+            kind === "colleges" ? `nav:college/${c.id}` : `select-school:${c.id}`,
+            "school",
+          ];
+        });
       if (matches.length) groups.push([label, matches]);
     }
   }
@@ -2156,10 +2456,11 @@ async function action(value, el) {
       closeDialog(true);
       break;
     case "more": {
-      const menu = document.querySelector("#more-menu");
-      menu.hidden = !menu.hidden;
-      el.setAttribute("aria-expanded", String(!menu.hidden));
-      if (!menu.hidden) menu.querySelector("a").focus();
+      const details = document.querySelector("details.nav-more");
+      if (details) {
+        details.open = !details.open;
+        if (details.open) details.querySelector(".top-menu a, .top-menu button")?.focus();
+      }
       break;
     }
     case "portal-confirm":
@@ -2179,6 +2480,9 @@ async function action(value, el) {
       break;
     case "mission-board":
       taskView = "Board";
+      taskFilter = "All";
+      taskPriority = "All";
+      taskCollege = "";
       navigate("tasks");
       break;
     case "search":
@@ -2218,11 +2522,14 @@ async function action(value, el) {
         navigate("applications");
       }
       break;
-    case "app-filter":
+    case "app-filter": {
       appFilter = arg;
       render();
-      document.querySelector(`.filter-tabs [data-action="app-filter:${CSS.escape(arg)}"]`)?.focus();
+      const tab = document.querySelector(`.filter-tabs [data-action="app-filter:${CSS.escape(arg)}"]`);
+      tab?.focus();
+      tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
       break;
+    }
     case "app-view":
       appView = arg || "List";
       render();
@@ -2242,6 +2549,7 @@ async function action(value, el) {
           req = {
             id: uid(),
             title: sub,
+            domain: "admissions",
             done: true,
             doneAt: new Date().toISOString(),
             required: true,
@@ -2268,6 +2576,7 @@ async function action(value, el) {
             a.requirements.push({
               id: uid(),
               title: arg,
+              domain: "admissions",
               done: true,
               doneAt: new Date().toISOString(),
               required: true,
@@ -2283,51 +2592,60 @@ async function action(value, el) {
       }, `${arg} marked complete across ${apps.length} schools`);
       break;
     }
-    case "reset-app-filters":
+    case "reset-app-filters": {
       appFilter = "All";
       appTierFilter = "All";
       appQuery = "";
       render();
-      document.querySelector('.filter-tabs [data-action="app-filter:All"]')?.focus();
+      const tab = document.querySelector('.filter-tabs [data-action="app-filter:All"]');
+      tab?.focus();
+      tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
       break;
+    }
     case "add-application":
       addApplication();
       break;
-    case "edit-application":
-      addApplication(
-        null,
-        state.applications.find((a) => a.id === id),
-      );
+    case "edit-application": {
+      const a = state.applications.find((x) => x.id === id);
+      if (a) addApplication(null, a);
       break;
+    }
     case "app-menu": {
       const a = state.applications.find((a) => a.id === id);
+      if (!a) break;
       dialog(
         `<div class="dialog-heading"><h2>${h(a.name)}</h2>${ibtn("x", "Close actions", "close-dialog")}</div><div class="export-options">${btn("Open workspace", `nav:application/${id}`, "secondary", "arrow")}${btn("Edit application", `edit-application:${id}`, "secondary", "edit")}${btn("Duplicate application", `duplicate-application:${id}`, "secondary", "file")}${btn(a.archived ? "Restore application" : "Archive application", `archive-application:${id}`, "secondary", "archive")}${btn("Delete application", `delete-application:${id}`, "danger", "trash")}</div>`,
       );
       break;
     }
     case "duplicate-application": {
-      mutate(() => {
-        const a = structuredClone(state.applications.find((a) => a.id === id));
-        a.id = uid();
-        a.name += " (copy)";
-        const ids = new Map(a.requirements.map((r) => [r.id, uid()]));
-        a.requirements.forEach((r) => {
-          r.id = ids.get(r.id);
-          if (r.dependsOn) r.dependsOn = ids.get(r.dependsOn) || "";
-        });
-        a.created = Date.now();
-        state.applications.push(a);
-      }, "Application duplicated");
-      closeDialog();
+      const src = state.applications.find((a) => a.id === id);
+      if (!src) break;
+      if (
+        mutate(() => {
+          const a = structuredClone(src);
+          a.id = uid();
+          a.name += " (copy)";
+          const ids = new Map(a.requirements.map((r) => [r.id, uid()]));
+          a.requirements.forEach((r) => {
+            r.id = ids.get(r.id);
+            if (r.dependsOn) r.dependsOn = ids.get(r.dependsOn) || "";
+          });
+          a.created = Date.now();
+          state.applications.push(a);
+        }, "Application duplicated")
+      )
+        closeDialog();
       break;
     }
     case "archive-application":
-      mutate(() => {
-        const a = state.applications.find((a) => a.id === id);
-        a.archived = !a.archived;
-      }, "Application updated");
-      closeDialog();
+      if (
+        mutate(() => {
+          const a = state.applications.find((a) => a.id === id);
+          if (a) a.archived = !a.archived;
+        }, "Application updated")
+      )
+        closeDialog();
       break;
     case "delete-application":
       confirmAction(
@@ -2342,22 +2660,28 @@ async function action(value, el) {
           }, "Application removed"),
       );
       break;
-    case "workspace-tab":
+    case "workspace-tab": {
       workspaceTab = arg;
       render();
+      const tab = document.querySelector(`.workspace-tabs [data-action="workspace-tab:${CSS.escape(arg)}"]`);
+      tab?.focus();
+      tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
       break;
-    case "add-requirement":
-      requirementForm(state.applications.find((a) => a.id === id));
+    }
+    case "add-requirement": {
+      const a = state.applications.find((x) => x.id === id);
+      if (a) requirementForm(a);
       break;
-    case "edit-requirement":
-      requirementForm(
-        state.applications.find((a) => a.id === id),
-        sub,
-      );
+    }
+    case "edit-requirement": {
+      const a = state.applications.find((x) => x.id === id);
+      if (a) requirementForm(a, sub);
       break;
+    }
     case "delete-requirement":
       mutate(() => {
         const a = state.applications.find((a) => a.id === id);
+        if (!a) return;
         a.requirements = a.requirements.filter((r) => r.id !== sub);
         a.requirements.forEach((r) => {
           if (r.dependsOn === sub) r.dependsOn = "";
@@ -2367,6 +2691,7 @@ async function action(value, el) {
     case "starter-requirements":
       mutate(() => {
         const a = state.applications.find((a) => a.id === id);
+        if (!a) return;
         a.requirements.push(
           ...[
             "Review official requirements",
@@ -2376,11 +2701,11 @@ async function action(value, el) {
             "Supplemental essays",
             "Transcript",
             "Recommendations",
-            "Financial aid forms",
             "Final review & submission",
           ].map((title) => ({
             id: uid(),
             title,
+            domain: "admissions",
             done: false,
             required: true,
             weight: 1,
@@ -2392,6 +2717,7 @@ async function action(value, el) {
       break;
     case "record-decision": {
       const a = state.applications.find((a) => a.id === id);
+      if (!a) break;
       formDialog(
         "A new chapter.",
         `${select("Your confirmed decision", "decision", ["Accepted", "Enrolled", "Waitlisted", "Rejected", "Withdrawn"], a.decision || "Accepted")}${field("Decision date", "decisionDate", a.decisionDate || today(), "date", "required")}${textarea("Notes about the decision", "decisionNotes", a.decisionNotes)}`,
@@ -2561,14 +2887,13 @@ async function action(value, el) {
       );
       break;
     case "archive-task":
-      mutate(
-        () =>
-          (state.tasks.find((t) => t.id === id).archived = !state.tasks.find(
-            (t) => t.id === id,
-          ).archived),
-        "Task updated",
-      );
-      closeDialog();
+      if (
+        mutate(() => {
+          const t = state.tasks.find((t) => t.id === id);
+          if (t) t.archived = !t.archived;
+        }, "Task updated")
+      )
+        closeDialog();
       break;
     case "delete-task":
       confirmAction(
@@ -2615,10 +2940,12 @@ async function action(value, el) {
             ),
         );
       else {
-        for (const taskId of ids) {
-          const t = state.tasks.find((t) => t.id === taskId);
-          if (t.status !== "Done") completeTask(taskId);
-        }
+        mutate(() => {
+          for (const taskId of ids) {
+            const t = state.tasks.find((t) => t.id === taskId);
+            if (t && t.status !== "Done") transitionTask(t, "Done");
+          }
+        }, "Tasks completed");
       }
       break;
     }
@@ -2675,63 +3002,77 @@ async function action(value, el) {
     case "essay-versions":
       essayVersions(id);
       break;
-    case "snapshot-essay":
-      mutate(
+    case "snapshot-essay": {
+      flushPendingEditorSave();
+      const ok = mutate(
         () => {
           const e = state.essays.find((e) => e.id === id);
+          if (!e) return;
           e.versions.push({ id: uid(), at: Date.now(), body: e.body });
           if (e.versions.length > 20) e.versions.shift();
         },
         "Snapshot saved",
         false,
       );
-      essayVersions(id);
+      if (ok) essayVersions(id);
       break;
+    }
     case "compare-version": {
       const e = state.essays.find((e) => e.id === id),
-        v = e.versions.find((v) => v.id === sub);
+        v = e?.versions.find((v) => v.id === sub);
+      if (!e || !v) break;
       dialog(
-        `<div class="dialog-heading"><h2>Your draft, then and now.</h2>${ibtn("x", "Close comparison", "close-dialog")}</div><div class="version-compare"><div><span class="eyebrow">${new Date(v.at).toLocaleDateString()}</span><pre>${h(v.body)}</pre></div><div><span class="eyebrow">CURRENT DRAFT</span><pre>${h(e.body)}</pre></div></div>`,
+        `<div class="dialog-heading"><h2>Your draft, then and now.</h2>${ibtn("x", "Close comparison", "close-dialog")}</div><div class="version-compare"><div><span class="eyebrow">${h(new Date(v.at).toLocaleString())}</span><pre>${h(v.body)}</pre></div><div><span class="eyebrow">CURRENT DRAFT</span><pre>${h(e.body)}</pre></div></div><div class="dialog-footer">${btn("Back to history", `essay-versions:${id}`, "secondary", "arrow")}${btn("Done", "close-dialog", "primary", "check")}</div>`,
         true,
       );
       break;
     }
     case "restore-version":
-      mutate(() => {
-        const e = state.essays.find((e) => e.id === id),
-          v = e.versions.find((v) => v.id === sub);
-        e.versions.push({ id: uid(), at: Date.now(), body: e.body });
-        e.body = v.body;
-        if (e.versions.length > 20) e.versions.shift();
-      }, "Draft restored. Previous draft saved as a snapshot.");
-      closeDialog();
+      flushPendingEditorSave();
+      if (
+        mutate(() => {
+          const e = state.essays.find((e) => e.id === id),
+            v = e?.versions.find((v) => v.id === sub);
+          if (!e || !v) return;
+          e.versions.push({ id: uid(), at: Date.now(), body: e.body });
+          e.body = v.body;
+          e.reviewChecks = [];
+          if (e.versions.length > 20) e.versions.shift();
+        }, "Draft restored. Previous draft saved as a snapshot.")
+      )
+        closeDialog();
       break;
     case "essay-export":
+      flushPendingEditorSave();
       essayExport(id);
       break;
     case "export-essay-txt": {
       const e = state.essays.find((e) => e.id === id);
-      download(`${e.title}.txt`, e.body);
+      if (e) download(`${e.title}.txt`, e.body);
       break;
     }
     case "export-essay-docx": {
       const e = state.essays.find((e) => e.id === id);
+      if (!e) break;
       const { makeDocx } = await import("./exports.js");
       download(`${e.title}.docx`, makeDocx(e.title, e.body));
       break;
     }
     case "export-essay-pdf": {
       const e = state.essays.find((e) => e.id === id);
-      document.querySelector("#print-root").innerHTML =
-        `<h1>${h(e.title)}</h1><div>${h(e.body).replace(/\n/g, "<br>")}</div>`;
+      if (!e) break;
+      const pr = document.querySelector("#print-root");
+      if (!pr) break;
+      pr.innerHTML = `<h1>${h(e.title)}</h1><div>${h(e.body).replace(/\n/g, "<br>")}</div>`;
+      document.body.classList.add("printing-export");
       window.print();
       break;
     }
-    case "copy-essay":
+    case "copy-essay": {
+      const e = state.essays.find((e) => e.id === id);
+      if (!e) break;
       try {
-        await navigator.clipboard.writeText(
-          state.essays.find((e) => e.id === id).body,
-        );
+        await navigator.clipboard.writeText(e.body);
         toast("Your words, copied.");
       } catch {
         toast(
@@ -2739,6 +3080,7 @@ async function action(value, el) {
         );
       }
       break;
+    }
     case "upload-document":
       uploadDocument(arg);
       break;
@@ -2747,6 +3089,7 @@ async function action(value, el) {
       break;
     case "download-document": {
       const d = state.documents.find((d) => d.id === id);
+      if (!d) break;
       const bytes = Uint8Array.from(atob(d.data.split(",")[1]), (c) =>
         c.charCodeAt(0),
       );
@@ -2755,6 +3098,7 @@ async function action(value, el) {
     }
     case "edit-document": {
       const d = state.documents.find((d) => d.id === id);
+      if (!d) break;
       formDialog(
         "Everything in its place.",
         `${field("File name", "name", d.name, "text", 'required maxlength="180"')}${appSelect(d.applicationId)}${select("Folder", "folder", ["Transcripts", "Essays", "Recommendation Materials", "Financial Aid", "Scholarships", "Other"], d.folder)}${field("Tags", "tags", d.tags)}`,
@@ -3023,6 +3367,21 @@ function csv(rows) {
   );
 }
 document.addEventListener("click", async (e) => {
+  if (!(e.target instanceof Element)) return;
+  const skip = e.target.closest(".skip-link");
+  if (skip) {
+    e.preventDefault();
+    const main = document.getElementById("main");
+    if (main) {
+      main.focus();
+      main.scrollIntoView({ block: "start" });
+    }
+    return;
+  }
+  const openMore = document.querySelector("details.nav-more[open]");
+  if (openMore && (!e.target.closest("details.nav-more") || e.target.closest(".top-menu a, .top-menu button"))) {
+    openMore.open = false;
+  }
   const el = e.target.closest("[data-action]");
   if (el) {
     e.preventDefault();
@@ -3031,37 +3390,36 @@ document.addEventListener("click", async (e) => {
     } catch (error) {
       toast(error.message || "That couldn’t be saved. Please try again.");
     }
-  } else if (!e.target.closest(".dropdown")) {
-    const menu = document.querySelector("#more-menu");
-    if (menu) {
-      menu.hidden = true;
-      document
-        .querySelector('[data-action="more"]')
-        .setAttribute("aria-expanded", "false");
-    }
   }
 });
 document.addEventListener("submit", async (e) => {
+  if (!(e.target instanceof Element)) return;
   const form = e.target.closest("[data-form]");
   if (!form) return;
   e.preventDefault();
+  const errEl = form.querySelector(".form-error");
+  if (errEl) errEl.textContent = "";
   const submit = form.querySelector("button[type=submit]");
   if (submit) submit.disabled = true;
   try {
     const values = Object.fromEntries(new FormData(form));
-    const result = await formHandlers.get(form.dataset.form)(values, form);
+    const handler = formHandlers.get(form.dataset.form);
+    if (!handler) return;
+    const result = await handler(values, form);
     if (result !== false) {
       formHandlers.delete(form.dataset.form);
       closeDialog();
     }
   } catch (error) {
-    form.querySelector(".form-error").textContent = error.message;
+    if (errEl) errEl.textContent = error.message;
+    else toast(error.message || "That couldn’t be saved. Please try again.");
   } finally {
     if (submit) submit.disabled = false;
   }
 });
 document.addEventListener("input", (e) => {
   const el = e.target;
+  if (!(el instanceof Element)) return;
   if (el.id === "global-search") {
     document.querySelector("#command-results").innerHTML = commandResults(
       el.value,
@@ -3094,11 +3452,8 @@ document.addEventListener("input", (e) => {
   }
   if (el.id === "essay-search") {
     essayQuery = el.value;
-    const pos = el.selectionStart;
-    render();
-    const input = document.querySelector("#essay-search");
-    input.focus();
-    input.setSelectionRange(pos, pos);
+    const listEl = document.querySelector(".essay-list");
+    if (listEl) listEl.innerHTML = essayListMarkup();
     return;
   }
   if (el.id === "document-search") {
@@ -3109,29 +3464,39 @@ document.addEventListener("input", (e) => {
     return;
   }
   if (el.dataset.appNotes) {
-    const a = state.applications.find((a) => a.id === el.dataset.appNotes);
-    const before = a.notes;
-    a.notes = el.value;
-    if (!save()) a.notes = before;
+    const appId = el.dataset.appNotes;
+    const value = el.value;
+    scheduleEditorSave(() => {
+      const a = state.applications.find((x) => x.id === appId);
+      if (!a) return;
+      const before = a.notes;
+      a.notes = value;
+      if (!save()) a.notes = before;
+    });
   }
   if (el.dataset.collegeNotes) {
-    let note = state.notes.find((n) => n.collegeId === el.dataset.collegeNotes);
-    const before = structuredClone(state.notes);
-    if (!note) {
-      note = {
-        id: uid(),
-        collegeId: el.dataset.collegeNotes,
-        title: `${schoolRecords("colleges").find((c) => c.id === el.dataset.collegeNotes)?.name || "College"} research`,
-        body: "",
-      };
-      state.notes.push(note);
-    }
-    note.body = el.value;
-    if (!save()) state.notes = before;
+    const collegeId = el.dataset.collegeNotes;
+    const value = el.value;
+    scheduleEditorSave(() => {
+      let note = state.notes.find((n) => n.collegeId === collegeId);
+      const before = structuredClone(state.notes);
+      if (!note) {
+        note = {
+          id: uid(),
+          collegeId,
+          title: `${schoolRecords("colleges").find((c) => c.id === collegeId)?.name || "College"} research`,
+          body: "",
+        };
+        state.notes.push(note);
+      }
+      note.body = value;
+      if (!save()) state.notes = before;
+    });
   }
 });
 document.addEventListener("change", async (e) => {
   const el = e.target;
+  if (!(el instanceof Element)) return;
   const filters = {
     "app-status": (v) => (appFilter = v),
     "app-tier": (v) => (appTierFilter = v),
@@ -3169,12 +3534,15 @@ document.addEventListener("change", async (e) => {
     return;
   }
   if (filters[el.id]) {
-    filters[el.id](el.value);
+    const id = el.id;
+    filters[id](el.value);
     render();
+    document.getElementById(id)?.focus();
   }
   if (el.dataset.requirement) {
     const a = state.applications.find((a) => a.id === el.dataset.app),
-      r = a.requirements.find((r) => r.id === el.dataset.requirement);
+      r = a?.requirements.find((r) => r.id === el.dataset.requirement);
+    if (!a || !r) return;
     if (
       el.checked &&
       r.dependsOn &&
@@ -3212,20 +3580,39 @@ document.addEventListener("change", async (e) => {
     mutate(() => (state.profile.questbridge = el.checked));
   if (el.dataset.fit) {
     const [id, key] = el.dataset.fit.split("/");
-    mutate(() => {
-      state.profile.fit ||= {};
-      state.profile.fit[id] ||= {};
-      state.profile.fit[id][key] = Number(el.value);
-    });
+    if (
+      mutate(
+        () => {
+          state.profile.fit ||= {};
+          state.profile.fit[id] ||= {};
+          state.profile.fit[id][key] = Number(el.value);
+        },
+        "",
+        false,
+      )
+    ) {
+      const scoreEl = el.closest("td")?.querySelector(".fit-score");
+      if (scoreEl) scoreEl.textContent = `${fitScore(id)} / 5`;
+    }
   }
-  if (el.dataset.fitWeight)
-    mutate(() => {
-      state.profile.fitWeights ||= {};
-      state.profile.fitWeights[el.dataset.fitWeight] = Math.max(
-        0,
-        Math.min(10, Number(el.value) || 0),
-      );
-    });
+  if (el.dataset.fitWeight) {
+    const clamped = Math.max(0, Math.min(10, Number(el.value) || 0));
+    el.value = String(clamped);
+    if (
+      mutate(
+        () => {
+          state.profile.fitWeights ||= {};
+          state.profile.fitWeights[el.dataset.fitWeight] = clamped;
+        },
+        "",
+        false,
+      )
+    ) {
+      document.querySelectorAll("[data-fit-score]").forEach((node) => {
+        node.textContent = `${fitScore(node.dataset.fitScore)} / 5`;
+      });
+    }
+  }
   if (el.id === "backup-file" && el.files[0]) {
     try {
       if (el.files[0].size > 12 * 1024 * 1024)
@@ -3240,6 +3627,7 @@ document.addEventListener("change", async (e) => {
 document.addEventListener("keydown", (e) => {
   if(isPrivacyLocked())return;
   if (
+    e.target instanceof Element &&
     e.target.matches('[role="tab"]') &&
     ["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)
   ) {
@@ -3255,22 +3643,27 @@ document.addEventListener("keydown", (e) => {
             : (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
               tabs.length;
     e.preventDefault();
+    const nextId = tabs[next]?.id;
     tabs[next].click();
-    document.querySelectorAll('[role="tablist"] [role="tab"]')[next]?.focus();
+    if (nextId) document.getElementById(nextId)?.focus();
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
-    globalSearch();
+    const openDialog = document.querySelector("#dialogs dialog[open]");
+    const openSearch = openDialog?.querySelector("#global-search");
+    if (openSearch) {
+      openSearch.focus();
+      openSearch.select();
+    } else if (!openDialog?.querySelector("[data-form]")) {
+      globalSearch();
+    }
   }
   if (e.key === "Escape") {
-    const menu = document.querySelector("#more-menu");
-    if (menu && !menu.hidden) {
-      menu.hidden = true;
-      document
-        .querySelector('[data-action="more"]')
-        .setAttribute("aria-expanded", "false");
-      document.querySelector('[data-action="more"]').focus();
+    const openMore = document.querySelector("details.nav-more[open]");
+    if (openMore) {
+      openMore.open = false;
+      openMore.querySelector("summary")?.focus();
     }
     if (mobileMenu) {
       mobileMenu = false;
@@ -3278,37 +3671,52 @@ document.addEventListener("keydown", (e) => {
       document.querySelector('[data-action="mobile-menu"]')?.focus();
     }
   }
-  if (e.target.id === "global-search") {
+  const keyTarget = e.target instanceof Element ? e.target : null;
+  if (
+    keyTarget?.id === "global-search" ||
+    (keyTarget?.closest("#command-results") &&
+      ["ArrowDown", "ArrowUp"].includes(e.key))
+  ) {
     const options = [...document.querySelectorAll(".command-result")];
-    if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+    if (["ArrowDown", "ArrowUp"].includes(e.key) && options.length) {
       e.preventDefault();
-      searchIndex = Math.max(
-        0,
-        Math.min(
-          options.length - 1,
-          searchIndex + (e.key === "ArrowDown" ? 1 : -1),
-        ),
-      );
+      if (searchIndex < 0) {
+        searchIndex = e.key === "ArrowDown" ? 0 : options.length - 1;
+      } else {
+        searchIndex =
+          (searchIndex + (e.key === "ArrowDown" ? 1 : -1) + options.length) %
+          options.length;
+      }
       options.forEach((o, i) =>
         o.classList.toggle("keyboard-selected", i === searchIndex),
       );
       options[searchIndex]?.scrollIntoView({ block: "nearest" });
     }
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && e.target.id === "global-search") {
       e.preventDefault();
       (options[searchIndex] || options[0])?.click();
     }
   }
   if (
-    e.target.closest("#more-menu") &&
+    keyTarget?.closest("details.nav-more[open]") &&
     ["ArrowDown", "ArrowUp"].includes(e.key)
   ) {
-    e.preventDefault();
-    const list = [...document.querySelectorAll("#more-menu a")],
-      i = list.indexOf(document.activeElement);
-    list[
-      (i + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length
-    ].focus();
+    const list = [
+      ...document.querySelectorAll(
+        "details.nav-more[open] .top-menu a, details.nav-more[open] .top-menu button",
+      ),
+    ];
+    if (list.length) {
+      e.preventDefault();
+      const i = list.indexOf(document.activeElement);
+      const next =
+        i < 0
+          ? e.key === "ArrowDown"
+            ? 0
+            : list.length - 1
+          : (i + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length;
+      list[next]?.focus();
+    }
   }
 });
 document.addEventListener("dragstart", (e) => {
@@ -3365,15 +3773,35 @@ document.addEventListener("drop", (e) => {
       });
   }
 });
+window.addEventListener("ascend:lock", () => {
+  formHandlers.clear();
+  modalReturnFocus = null;
+  modalReturnAction = "";
+});
+window.addEventListener("afterprint", () => {
+  document.body.classList.remove("printing-export");
+  document.querySelector("#print-root")?.replaceChildren();
+});
+window.addEventListener("pagehide", flushPendingEditorSave);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) flushPendingEditorSave();
+});
 window.addEventListener("hashchange", () => {
+  flushPendingEditorSave();
+  const nextRoute = location.hash.slice(1) || "home";
+  if (nextRoute === "main") {
+    document.getElementById("main")?.focus();
+    return;
+  }
   closeDialog();
-  route = location.hash.slice(1) || "home";
+  route = nextRoute;
   mobileMenu = false;
   workspaceTab = "Overview";
   render();
   window.scrollTo({ top: 0, behavior: "instant" });
 });
 window.addEventListener("storage", (e) => {
+  if (isPrivacyLocked()) return;
   if (e.key === STORAGE_KEY) {
     try {
       state = loadState();
@@ -3385,13 +3813,15 @@ window.addEventListener("storage", (e) => {
   }
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (state.profile.theme === "system") render();
+  if (isPrivacyLocked()) return;
+  if (state.profile.theme === "system") applyTheme();
 });
-window.addEventListener("error", () =>
+window.addEventListener("error", () => {
+  if (isPrivacyLocked()) return;
   toast(
     "Something didn’t open correctly. Your saved data is still in this browser.",
-  ),
-);
+  );
+});
 const planner = createPlanner({
   getState: () => state,
   mutate,
@@ -3433,12 +3863,12 @@ const extras = createExtras({
 });
 let deviceSync = createDeviceSync({getState:()=>state,render,header,btn,field,formDialog,toast,isLocked:isPrivacyLocked,lock:lockWorkspace,isFreshDevice:()=>!localStorage.getItem(STORAGE_KEY),applyRemote:workspace=>{try{if(storageReadFailed)return false;const next=parseWorkspaceBackup(JSON.stringify(workspace));localStorage.setItem("ascend.before-last-sync.v1",JSON.stringify(state));persistState(next);state=next;applyTheme();return true;}catch{return false;}}});
 const studio = createWorkspaceTools({getState:()=>state,mutate,render,header,btn,ibtn,field,select,textarea,appSelect,formDialog,dialog,closeDialog,toast,csv});
-window.addEventListener("ascend:unlock",()=>{render();deviceSync.sync();});
+window.addEventListener("ascend:unlock",()=>{render();});
 root.innerHTML='<main class="privacy-screen"><section class="panel" role="status"><span class="eyebrow">YOUR PRIVATE WORKSPACE</span><h1>Opening your workspace…</h1><p>Restoring your saved applications and plans.</p></section></main>';
 await deviceSync.initialize();
 render();deviceSync.start();
 if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(() => {});
 
 function searchRank(query, c) {
   const q = query.toLowerCase().trim(),

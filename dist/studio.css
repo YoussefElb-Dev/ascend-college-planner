@@ -166,8 +166,8 @@
   color: var(--text);
 }
 .month-cell.is-today .month-cell-head > button:first-child {
-  background: #655a73;
-  color: white;
+  background: var(--blue);
+  color: var(--glass-primary-text);
 }
 .cell-add {
   opacity: 0;
@@ -396,7 +396,7 @@
 .schedule-week-day.is-today {
   background: var(--soft);
 }
-.week-date {
+.schedule-week .week-date {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -405,7 +405,7 @@
   font-size: 11px;
   color: var(--muted);
 }
-.week-date strong {
+.schedule-week .week-date strong {
   font-size: 20px;
   color: var(--text);
 }
@@ -448,6 +448,12 @@
 .all-day-row small {
   font-size: 12px;
   color: var(--muted);
+}
+.hour-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 .hour-row .schedule-event {
   margin: 0;
@@ -632,11 +638,11 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, #0009);
-  padding: 20px 10px 6px;
-  color: white;
-  font-size: 8px;
-  line-height: 1.6;
+  background: linear-gradient(transparent, rgb(0 0 0 / 78%));
+  padding: 22px 12px 8px;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.45;
 }
 .campus-photo-credit a {
   color: inherit;
@@ -901,8 +907,11 @@
     gap: 3px;
   }
   .calendar-period .icon-btn {
-    width: 30px;
-    min-width: 30px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
   }
   .calendar-period .btn {
     padding: 6px 8px;
@@ -1627,10 +1636,13 @@ textarea {
 .info-note {
   border-radius: 14px;
   background: var(--blue-bg);
-  color: var(--blue);
+  color: var(--text);
   font-size: 12px;
   line-height: 1.7;
   padding: 15px 17px;
+}
+.info-note > .icon {
+  color: var(--blue);
 }
 .body-copy,
 .record-preview,
@@ -2582,9 +2594,11 @@ textarea {
   gap: 1px;
 }
 .collection-heading .icon-btn {
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
 }
 .collection-heading .icon-btn > .icon {
   width: 16px;
@@ -2777,23 +2791,23 @@ details ul {
 .week-column.is-today {
   background: color-mix(in srgb, var(--blue-bg) 45%, transparent);
 }
-.week-date {
+.week-column .week-date {
   display: flex;
   align-items: center;
   flex-direction: column;
   gap: 4px;
   min-height: 80px;
 }
-.week-date > span {
+.week-column .week-date > span {
   font-size: 11px;
   color: var(--muted);
 }
-.week-date > strong {
+.week-column .week-date > strong {
   font-size: 21px;
   font-weight: 750;
 }
-.week-date > small {
-  font-size: 9px;
+.week-column .week-date > small {
+  font-size: 11px;
   color: var(--blue);
 }
 .week-items {
@@ -3039,6 +3053,7 @@ details ul {
   }
 }
 .modal.closing {
+  pointer-events: none;
   animation: modal-out 160ms var(--ease) forwards;
 }
 @keyframes modal-out {
@@ -3318,6 +3333,9 @@ main[data-page="contacts"] .page-heading {
   background: var(--lavender-bg);
 }
 .kanban-column:nth-child(3) {
+  background: var(--peach-bg);
+}
+.kanban-column:nth-child(4) {
   background: var(--mint-bg);
 }
 .kanban-column .board-card {
@@ -3548,7 +3566,7 @@ main[data-page="contacts"] .page-heading {
   color: #edbbcf;
 }
 [data-theme="dark"] .progress-track > i {
-  background: #8fbaaa;
+  background: var(--green);
 }
 [data-theme="dark"] .home-welcome {
   background: linear-gradient(115deg, #302d3b, #2a3334);
@@ -4223,18 +4241,8 @@ main[data-page="contacts"] .page-heading {
   .toolbar > .muted {
     font-size: 12px;
   }
-  .application-row,
   .table-labels {
-    grid-template-columns: minmax(0, 1fr) 100px 38px;
-    gap: 10px;
-  }
-  .application-row > .deadline-cell,
-  .table-labels > span:nth-child(4) {
     display: none;
-  }
-  .application-row {
-    padding: 13px 10px;
-    min-height: 88px;
   }
   .application-row > .row-actions > a {
     display: none;
@@ -4416,23 +4424,28 @@ main[data-page="contacts"] .page-heading {
     gap: 8px;
   }
   .task-card .bulk-check,
-  .task-card .drag-grip {
+  .task-card .drag-grip,
+  .bulk-toolbar {
     display: none;
   }
   .task-title {
     font-size: 13px;
   }
   .task-meta {
-    font-size: 10px;
+    font-size: 11px;
     gap: 6px;
   }
   .task-card > .priority {
-    font-size: 9px;
-    padding: 4px 6px;
+    margin-left: 0;
+    font-size: 11px;
+    padding: 4px 7px;
   }
   .task-card > .icon-btn {
-    width: 30px;
-    min-width: 30px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
   }
   .kanban {
     grid-template-columns: 1fr;
@@ -4463,8 +4476,8 @@ main[data-page="contacts"] .page-heading {
     font-size: 12px;
   }
   .calendar-event {
-    font-size: 9px;
-    padding: 4px;
+    font-size: 11px;
+    padding: 4px 6px;
   }
   .resource-grid,
   .settings-grid,
@@ -4481,10 +4494,6 @@ main[data-page="contacts"] .page-heading {
   }
   .theme-options {
     gap: 8px;
-  }
-  .theme-options > button {
-    font-size: 12px !important;
-    padding: 16px 10px !important;
   }
   .modal {
     padding: 22px;
@@ -4576,8 +4585,11 @@ main[data-page="contacts"] .page-heading {
     gap: 0;
   }
   .document-row .icon-btn {
-    width: 32px;
-    min-width: 32px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
   }
   .record-row {
     gap: 10px;
@@ -4951,27 +4963,7 @@ main[data-page="contacts"] .page-heading {
 /* Root filtering also catches photos, inline status colors, and file previews.
    Top-layer dialogs receive their own filter because browsers composite them
    independently of the document's stacking context. */
-html[data-theme="monochrome"] {
-  --bg: #e9e9e9;
-  --surface-solid: #fafafa;
-  --soft: #e7e7e7;
-  --text: #202020;
-  --muted: #5d5d5d;
-  --border: #d5d5d5;
-  --blue: #323232;
-  --green: #424242;
-  --blue-bg: #e2e2e2;
-  --lavender-bg: #dedede;
-  --blush-bg: #e7e7e7;
-  --mint-bg: #e3e3e3;
-  --peach-bg: #ededed;
-  --glass-primary: linear-gradient(155deg, #494949, #1c1c1c);
-  --glass-outline: rgb(0 0 0 / 16%);
-  --glass-shade: rgb(0 0 0 / 9%);
-  filter: grayscale(1);
-}
-[data-theme="monochrome"] dialog,
-[data-theme="monochrome"] dialog::backdrop {
+[data-theme="monochrome"] :is(img, video, .campus-photo, .document-preview) {
   filter: grayscale(1);
 }
 .atmosphere {
@@ -5011,30 +5003,15 @@ dialog.modal {
   .metrics,
   .college-card,
   .collection-card,
+  .resource-card,
   .workspace-heading,
   .workspace-tabs
 ) {
-  background:
-    linear-gradient(135deg, var(--glass-gleam), transparent 60%),
-    var(--glass-surface);
-  border-color: var(--glass-outline);
+  background: var(--surface);
+  border-color: var(--border);
   box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-}
-:is(.college-card, .collection-card, .resource-card):nth-child(3n + 1) {
-  --glass-card-tint: var(--blue-bg);
-}
-:is(.college-card, .collection-card, .resource-card):nth-child(3n + 2) {
-  --glass-card-tint: var(--lavender-bg);
-}
-:is(.college-card, .collection-card, .resource-card):nth-child(3n) {
-  --glass-card-tint: var(--mint-bg);
-}
-:is(.college-card, .collection-card, .resource-card):nth-child(n) {
-  background:
-    linear-gradient(135deg, var(--glass-gleam), transparent 60%),
-    color-mix(in srgb, var(--glass-card-tint) 68%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .page-heading,
 .home-welcome,
@@ -5105,8 +5082,7 @@ dialog.modal {
 .btn.primary,
 [data-theme="dark"] .btn.primary,
 .nav-link.active,
-[data-theme="dark"] .nav-link.active,
-.workspace-tabs > button.selected {
+[data-theme="dark"] .nav-link.active {
   background: var(--glass-primary);
   color: var(--glass-primary-text);
   border-color: var(--glass-outline);

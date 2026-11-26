@@ -456,10 +456,12 @@ export function eventComponent(r) {
       if (r.repeatUntil) {
         const until = r.allDay
           ? r.repeatUntil.replaceAll("-", "")
-          : wallTimeToDate(r.repeatUntil, "23:59", r.timezone)
-              .toISOString()
-              .replace(/[-:]/g, "")
-              .replace(/\.\d+Z/, "Z");
+          : !r.timezone || r.timezone === "floating"
+            ? `${r.repeatUntil.replaceAll("-", "")}T235959`
+            : wallTimeToDate(r.repeatUntil, "23:59", r.timezone)
+                .toISOString()
+                .replace(/[-:]/g, "")
+                .replace(/\.\d+Z/, "Z");
         rule += `;UNTIL=${until}`;
       }
       comp.addPropertyWithValue("rrule", ICAL.Recur.fromString(rule));
